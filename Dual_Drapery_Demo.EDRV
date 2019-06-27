@@ -1,6 +1,7 @@
-DRIVER_ID			= GENDEV_LUA_NETWORK
+DRIVER_ID			= LIGHTDEVCTLR_LUA_NETWORK
 DRIVER_VERSION		= 1.0.0
-VENDOR				= EDS Developer
+VENDOR				= Current Product Corp.'s App
+AUTHENTICATION		= OAUTH
 DRIVER_NAME			= Dual_Drapery_Demo
 LUA_SRC				= Dual_Drapery_Demo.lua
 SCHEMA				= 82
