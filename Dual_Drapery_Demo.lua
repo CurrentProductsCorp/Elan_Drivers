@@ -26,7 +26,7 @@
 					.. "&redirect_uri=" .. ELAN_GetOAuthRedirectURI()
 
 		local SSL_socket = ELAN_CreateTCPClientSocket(HOST,80)
-		ELAN_Trace(string.format("Connecting to %s:%d", HOST,8081))
+		ELAN_Trace(string.format("Connecting to %s:%d", HOST,80))
 
 		local isConnected = ELAN_ConnectTCPSocket(SSL_socket)
 
@@ -39,11 +39,8 @@
 
 		if(p1 ~= nil) then
 			ELAN_Trace(string.format("p1: %s, p2: %s", tostring(p1), tostring(p2)))			
-			--t1,t2 = response:find("access_token")
-			--ELAN_Trace(string.format("t1: %s, t2: %s", tostring(t1), tostring(t2)))
 
-			--local content = ExtractHTTPContent(response)
-			local hJSON = ELAN_CreateJSONMsg(content)
+			local hJSON = ELAN_CreateJSONMsg(response)
 			ELAN_Trace(string.format("hJSON: %s", tostring(hJSON)))
 
 			sAccessToken = ELAN_FindJSONValueByKey(hJSON, hJSON, "access_token")
