@@ -25,14 +25,10 @@
 					.. "&client_secret=" .. CLIENT_SECRET
 					.. "&redirect_uri=" .. ELAN_GetOAuthRedirectURI()
 
-		local URLforSocket = "https://" .. HOST
-		local SSL_socket = ELAN_CreateSSLClientSocket(URLforSocket, 8081)
-		local isConnected = ELAN_ConnectTCPSocketAsync(SSL_socket, 5000)
-		ELAN_Trace(string.format("isConnected??: %s", tostring(isConnected)))
+		local SSL_socket = ELAN_CreateTCPClientSocket(HOST,80)
+		ELAN_Trace(string.format("Connecting to %s:%d", HOST,8081))
 
-		ELAN_Trace(string.format("SSL_Socket: %d",SSL_socket))
-		ELAN_Trace(string.format("sHTTP: %s",sHTTP))
-		ELAN_Trace(string.format("sContent: %s",sContent))
+		local isConnected = ELAN_ConnectTCPSocket(SSL_socket)
 
 		local response = ELAN_DoHTTPExchange(SSL_socket, sHTTP, sContent, true, 5000)
 		local p1, p2
@@ -40,23 +36,27 @@
 		
 		ELAN_TraceActiveSockets()
 		ELAN_Trace(string.format("Response: %s", response))
+
 		if(p1 ~= nil) then
-			ELAN_Trace("In p1")
-			local content = ExtractHTTPContent(response)
+			ELAN_Trace(string.format("p1: %s, p2: %s", tostring(p1), tostring(p2)))			
+			--t1,t2 = response:find("access_token")
+			--ELAN_Trace(string.format("t1: %s, t2: %s", tostring(t1), tostring(t2)))
+
+			--local content = ExtractHTTPContent(response)
 			local hJSON = ELAN_CreateJSONMsg(content)
-			ELAN_Trace("hJSON" .. hJSON)
+			ELAN_Trace(string.format("hJSON: %s", tostring(hJSON)))
 
 			sAccessToken = ELAN_FindJSONValueByKey(hJSON, hJSON, "access_token")
 			ELAN_SaveOAuthAccessToken(sAccessToken)
-			ELAN_Trace("sAccessToken" .. sAccessToken)
+			ELAN_Trace(string.format("sAccessToken: %s", tostring(sAccessToken)))
 
 			sRefreshToken = ELAN_FindJSONValueByKey(hJSON, hJSON, "refresh_token")
 			ELAN_SaveOAuthRefreshToken(sRefreshToken)
-			ELAN_Trace("sRefreshToken" .. sRefreshToken)
+			ELAN_Trace(string.format("sRefreshToken: %s", tostring(sRefreshToken)))
 
 			iExpiration = ELAN_FindJSONValueByKey(hJSON, hJSON, "expires_in")
 			ELAN_SetOAuthTokenExpiration(iExpiration)
-			ELAN_Trace("iExpiration" .. iExpiration)
+			ELAN_Trace(string.format("iExpiration: %s", tostring(iExpiration)))
 		else
 			ELAN_CloseSocket(SSL_socket)
 		end
@@ -75,5 +75,6 @@
             -- Execute Command 3
         end
     end
+
 
 
