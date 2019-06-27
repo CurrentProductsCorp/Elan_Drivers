@@ -1,4 +1,4 @@
-
+--| Initialization ----------------------------------------------------------------
     function EDRV_Init()
     -- called when the driver starts up
 		HOST = "api.currentproducts.io"
@@ -12,6 +12,10 @@
 		ELAN_InitOAuthorizeURL(sAuthURL)
     end
 
+--| Oauth -------------------------------------------------------------------------
+--[[-------------------------------------------------------
+	Is called when a user hits authorize
+--]]-------------------------------------------------------
 	function EDRV_RecvOAuthorizationCode( sAuthCode )
 		local sHTTP = "POST /oauth/token HTTP/1.1\r\n"
 					.. "Accept: application/json\r\n"
@@ -73,5 +77,50 @@
         end
     end
 
-
-
+--[[-------------------------------------------------------
+	Checks token for refresh needs, cycles if necessary
+	@return boolean for refresh success
+--]]-------------------------------------------------------
+	function checkTokenExpired()
+		if (ELAN_getOAuthTokenTTL() <= 0) then
+			--create headers and body
+			local sHTTP = "POST /oauth/token HTTP/1.1\r\n"
+						.. "Accept: application/json\r\n"
+						.. "Host: " .. HOST .. "\r\n"
+						.. "Content-Type: application/x-www-form-urlencoded\r\n"
+						.. "\r\n"
+			local sContent = "grant_type=refresh_token"
+						.. "&refresh_token=" .. ELAN_getOAuthRefreshToken()
+						.. "&client_id=" .. CLIENT_ID
+						.. "&client_secret=" .. CLIENT_SECRET
+			--socket interaction
+			local socket = ELAN_CreateTCPClientSocket(HOST,80)
+			ELAN_ConnectTCPSocketAsync(socket, 5000)
+			
+			--response validation
+			local response = ELAN_DoHTTPExchange(socket, sHTTP, sContent, true, 5000)
+			local p1, p2
+			p1,p2 = response:find("200 OK")
+			if(p1 ~= nil) then
+				--response parsing
+				local hJSON = ELAN_CreateJSONMsg(response)
+				sAccessToken = ELAN_FindJSONValueByKey(hJSON, hJSON, "access_token")
+				ELAN_SaveOAuthAccessToken(sAccessToken)
+				sRefreshToken = ELAN_FindJSONValueByKey(hJSON, hJSON, "refresh_token")
+				ELAN_SaveOAuthRefreshToken(sRefreshToken)
+				iExpiration = ELAN_FindJSONValueByKey(hJSON, hJSON, "expires_in")
+				ELAN_SetOAuthTokenExpiration(iExpiration)
+			else
+				ELAN_CloseSocket(SSL_socket)
+				--socket comms failed
+				return false
+			end
+			--set new token properly
+			return true
+		else
+			--token wasn't expired
+			return true
+		end
+		--function failed
+		return false
+	end
