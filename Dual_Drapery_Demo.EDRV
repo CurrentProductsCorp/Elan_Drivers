@@ -16,10 +16,15 @@ DEFAULT_PORT		= 80
 [REGISTER_COMMANDS_END]
 
 [SUPPORTED_DEVICES_BEGIN]
-        DIMMER: tags:2 label: D Label 1, D Label 2
-		DIMMER_MULTI_CH: tags:4 label: Label 1, Label 2, Label 3, Label 4
+        DIMMER: tags:2 label: ID, Type
+		DIMMER_MULTI_CH: tags:2 label: ID
 [SUPPORTED_DEVICES_END]
 
 [RESOURCES_BEGIN]
+    Single_Drapery.emv
+    Single_Drapery.ekp
 [RESOURCES_END]
+
+
+
 

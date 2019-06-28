@@ -65,49 +65,6 @@
 		end
 	end
 
-	function DeviceDiscovery(socket)
-		local sHTTP = "GET /v1/devices/simple HTTP/1.1\r\n"
-					.. "Accept: application/json\r\n"
-					.. "Host: " .. HOST .. "\r\n"
-					.. "Authorization: Bearer " .. ELAN_GetOAuthAccessToken() .. "\r\n"
-					.. "Content-Type: application/x-www-form-urlencoded\r\n"
-					.. "\r\n"
-		local response = ELAN_DoHTTPExchange(socket, sHTTP, 5000)
-		ELAN_Trace(response)
-		local devicesJSON = ELAN_CreateJSONMsg(response)
-		
-
-		local deviceCount = ELAN_GetJSONSubNodeCount(devicesJSON, devicesJSON )
-		ELAN_Trace(string.format("Device Count:  %d",deviceCount))
-		local deviceListArray
-		local index = 0
-		for index = 0, deviceCount-1 do
-			local deviceListJSON = ELAN_GetJSONSubNode(devicesJSON, devicesJSON,index)
-			local devicesType, devicesKey = ELAN_GetJSONNodeType(devicesJSON, deviceListJSON )
-			local deviceValues = ELAN_GetJSONValue(devicesJSON, deviceListJSON)
-			deviceListArray.insert(devicesKey,deviceValue)
-			ELAN_Trace(string.format("JSON: %s",tostring(devicesJSON)))
-			ELAN_Trace(string.format("Type: %s",tostring(devicesType)))
-			ELAN_Trace(string.format("Key:  %s",tostring(devicesKey)))
-			ELAN_Trace(string.format("Value: %s",tostring(deviceValues)))
-		end
-		ELAN_Trace(string.format("Array: %s", tostring(deviceArrayList)))
-	end
-
-    function EDRV_ExecuteFunction(funcName)
-        if (funcName == "Sample Command 1") then
-            -- Execute Command 1
-        end
-
-        if (funcName == "Sample Command 2") then
-            -- Execute Command 2
-        end
-
-        if (funcName == "Sample Command 3") then
-            -- Execute Command 3
-        end
-    end
-
 --[[-------------------------------------------------------
 	Checks token for refresh needs, cycles if necessary
 	@return boolean for refresh success
@@ -155,3 +112,64 @@
 		--function failed
 		return false
 	end
+
+--[[-------------------------------------------------------
+	Populates the configurator with all the devices from
+	the server
+--]]-------------------------------------------------------
+	function DeviceDiscovery(socket)
+		local sHTTP = "GET /v1/devices/concise HTTP/1.1\r\n"
+					.. "Accept: application/json\r\n"
+					.. "Host: " .. HOST .. "\r\n"
+					.. "Authorization: Bearer " .. ELAN_GetOAuthAccessToken() .. "\r\n"
+					.. "Content-Type: application/x-www-form-urlencoded\r\n"
+					.. "\r\n"
+		local response = ELAN_DoHTTPExchange(socket, sHTTP, 5000)
+		ELAN_Trace(response)
+		local devicesJSON = ELAN_CreateJSONMsg(response)
+		
+
+		local deviceCount = ELAN_GetJSONSubNodeCount(devicesJSON, devicesJSON )
+		ELAN_Trace(string.format("Device Count:  %d",deviceCount))
+		local index = 0
+		for index = 0, deviceCount-1 do
+			local deviceItemJSON = ELAN_GetJSONSubNode(devicesJSON, devicesJSON,index)
+			local deviceID = ELAN_GetJSONValue(devicesJSON,deviceItemJSON)
+			ELAN_Trace(string.format("JSON: %s",tostring(deviceID)))
+			local numSubNodes = ELAN_GetJSONSubNodeCount(devicesJSON, deviceItemJSON)
+			ELAN_Trace(string.format("Number of subnodes: %d",numSubNodes))			
+			local deviceName = ELAN_FindJSONValueByKey(devicesJSON, deviceItemJSON, "name")
+			local deviceType = ELAN_FindJSONValueByKey(devicesJSON, deviceItemJSON, "type")
+			local deviceNumMotors = ELAN_FindJSONValueByKey(devicesJSON, deviceItemJSON, "numMotors")
+			if deviceNumMotors > 1 then
+				ELAN_AddLightingDevice("DIMMER_MULTI_CH",deviceName,deviceID,deviceType)
+			else 
+				ELAN_AddLightingDevice("DIMMER",deviceName,deviceID,deviceType)
+			end
+			ELAN_Trace(string.format("JSON: %s",tostring(devicesJSON)))
+			ELAN_Trace(string.format("Name: %s",tostring(deviceName)))
+			ELAN_Trace(string.format("Type: %s",tostring(deviceType)))
+			ELAN_Trace(string.format("NumMotors:  %d",deviceNumMotors))
+		end
+	end
+
+	function EDRV_ProcessIncoming(data)
+		ELAN_Trace(string.format("Data: %s",tostring(data)))
+	end
+
+    function EDRV_ExecuteFunction(funcName)
+        if (funcName == "Sample Command 1") then
+            -- Execute Command 1
+        end
+
+        if (funcName == "Sample Command 2") then
+            -- Execute Command 2
+        end
+
+        if (funcName == "Sample Command 3") then
+            -- Execute Command 3
+        end
+    end
+
+
+
