@@ -17,6 +17,7 @@
 	Is called when a user hits authorize
 --]]-------------------------------------------------------
 	function EDRV_RecvOAuthorizationCode( sAuthCode )
+		ELAN_SetDeviceState ("YELLOW", "Authorizing")
 		--create headers and body
 		local sHTTP = "POST /oauth/token HTTP/1.1\r\n"
 					.. "Accept: application/json\r\n"
@@ -54,12 +55,16 @@
 			ELAN_SaveOAuthRefreshToken(sRefreshToken)
 
 			iExpiration = ELAN_FindJSONValueByKey(hJSON, hJSON, "expires_in")
+			ELAN_Trace(string.format("Expiration: %s",iExpiration))
 			ELAN_SetOAuthTokenExpiration(iExpiration)
-			
+			ELAN_Trace(string.format("isExpired? %s", ELAN_GetOAuthTokenTTL()))
 			--Populates the Lighting interface with devices from the server
 			DeviceDiscovery(socket)
+
+			ELAN_SetDeviceState ("GREEN", "Connected To Server")
 		else
 			ELAN_CloseSocket(socket)
+			ELAN_SetDeviceState ("RED", "Could Not Authorize")
 		end
 	end
 
@@ -68,7 +73,9 @@
 	@return boolean for refresh success
 --]]-------------------------------------------------------
 	function checkTokenExpired()
-		if (ELAN_GetOAuthTokenTTL() <= 0) then
+		ELAN_SetDeviceState ("YELLOW", "Refreshing Token")
+		ELAN_Trace(string.format("Time to live: %d", ELAN_GetOAuthTokenTTL()))
+		if (tonumber(ELAN_GetOAuthTokenTTL()) <= 0) then
 			--create headers and body
 			local sHTTP = "POST /oauth/token HTTP/1.1\r\n"
 						.. "Accept: application/json\r\n"
@@ -76,14 +83,16 @@
 						.. "Content-Type: application/x-www-form-urlencoded\r\n"
 						.. "\r\n"
 			local sContent = "grant_type=refresh_token"
-						.. "&refresh_token=" .. ELAN_getOAuthRefreshToken()
+						.. "&refresh_token=" .. ELAN_GetOAuthRefreshToken()
 						.. "&client_id=" .. CLIENT_ID
 						.. "&client_secret=" .. CLIENT_SECRET
 			--socket interaction
 			local socket = ELAN_CreateTCPClientSocket(HOST,80)
 			ELAN_ConnectTCPSocketAsync(socket, 5000)
 			
+			ELAN_Trace(string.format("socket: %d", socket))
 			--response validation
+			ELAN_Trace(string.format("Content: %s", sContent))
 			local response = ELAN_DoHTTPExchange(socket, sHTTP, sContent, true, 5000)
 			local p1, p2
 			p1,p2 = response:find("200 OK")
@@ -98,9 +107,12 @@
 				sRefreshToken = ELAN_FindJSONValueByKey(hJSON, hJSON, "refresh_token")
 				ELAN_SaveOAuthRefreshToken(sRefreshToken)
 				iExpiration = ELAN_FindJSONValueByKey(hJSON, hJSON, "expires_in")
-				ELAN_SetOAuthTokenExpiration(iExpiration)
+				ELAN_SetOAuthTokenExpiration(tonumber(iExpiration))
+				ELAN_Trace(string.format("am me expired?? %d",tonumber(iExpiration)))
+				ELAN_SetDeviceState ("GREEN", "Connected To Server")
 			else
 				ELAN_CloseSocket(socket)
+				ELAN_SetDeviceState ("RED", "Could Not Authorize")
 				--socket comms failed
 				return false
 			end
@@ -108,9 +120,11 @@
 			return true
 		else
 			--token wasn't expired
+			ELAN_SetDeviceState ("GREEN", "Connected To Server")
 			return true
 		end
 		--function failed
+		ELAN_SetDeviceState ("RED", "Issue Getting Auth")
 		return false
 	end
 
@@ -119,6 +133,7 @@
 	the server
 --]]-------------------------------------------------------
 	function DeviceDiscovery(socket)
+		ELAN_SetDeviceState ("YELLOW", "GETTING DEVICES")
 		local sHTTP = "GET /v1/devices/concise HTTP/1.1\r\n"
 					.. "Accept: application/json\r\n"
 					.. "Host: " .. HOST .. "\r\n"
@@ -126,7 +141,6 @@
 					.. "Content-Type: application/x-www-form-urlencoded\r\n"
 					.. "\r\n"
 		local response = ELAN_DoHTTPExchange(socket, sHTTP, 5000)
-		ELAN_Trace(string.format("Response: %s", response))
 		local devicesJSON = ELAN_CreateJSONMsg(response)
 		
 		local deviceCount = ELAN_GetJSONSubNodeCount(devicesJSON, devicesJSON )
@@ -141,10 +155,10 @@
 			local deviceNumMotors = ELAN_FindJSONValueByKey(devicesJSON, deviceItemJSON, "numMotors")
 			--Create a second device if the decvice has two motors. This will append the appropriate motor number to the device name for lookup.
 			if deviceNumMotors > 1 then
-				ELAN_AddLightingDevice("DIMMER",deviceName .. " Motor 1",deviceID,deviceType,"sheer")
-				ELAN_AddLightingDevice("DIMMER",deviceName .. " Motor 2",deviceID,deviceType,"blackout")
+				ELAN_AddLightingDevice("DIMMER",deviceName .. " Motor 1",deviceID,deviceType,"sheer", "false")
+				ELAN_AddLightingDevice("DIMMER",deviceName .. " Motor 2",deviceID,deviceType,"blackout","false")
 			else
-				ELAN_AddLightingDevice("DIMMER",deviceName,deviceID,deviceType,"blackout")
+				ELAN_AddLightingDevice("DIMMER",deviceName,deviceID,deviceType,"blackout","false")
 			end
 		end
 		ELAN_CloseSocket(socket)
@@ -154,25 +168,41 @@
 --[[-------------------------------------------------------
 	Called when the slider is set to a new position
 --]]-------------------------------------------------------
-	function EDRV_DimDeviceTo(data, deviceID, deviceType, motor)
-		SetPosition(deviceID, data, motor)
+	function EDRV_DimDeviceTo(data, deviceID, deviceType, motor, isMotorReversed)
+		isRev = isMotorReversed:find("true") or isMotorReversed:find("yes")
+		if(isRev ~= nil) then
+			ELAN_Trace("motor is reversed")
+			SetPosition(deviceID, 100-data, motor)
+		else
+			SetPosition(deviceID, data, motor)
+		end
 	end
 --[[-------------------------------------------------------
 	Called when the slider is set to closed
 --]]-------------------------------------------------------
-	function EDRV_ActivateDevice(deviceID, deviceType, motor)
-		SetPosition(deviceID, 100, motor)
+	function EDRV_ActivateDevice(deviceID, deviceType, motor, isMotorReversed)
+		isRev = isMotorReversed:find("true") or isMotorReversed:find("yes")
+		if(isRev ~= nil) then
+			SetPosition(deviceID, 0, motor)
+		else
+			SetPosition(deviceID, 100, motor)
+		end
 	end
 --[[-------------------------------------------------------
 	Called when the slider is set to open
 --]]-------------------------------------------------------
-	function EDRV_DeactivateDevice(deviceID, deviceType, motor)
-		SetPosition(deviceID, 0, motor)
+	function EDRV_DeactivateDevice(deviceID, deviceType, motor, isMotorReversed)
+		isRev = isMotorReversed:find("true") or isMotorReversed:find("yes")
+		if(isRev ~= nil) then
+			SetPosition(deviceID, 100, motor)
+		else
+			SetPosition(deviceID, 0, motor)
+		end
 	end
 --[[-------------------------------------------------------
 	HTTP call for setting the new position
 --]]-------------------------------------------------------
-	function SetPosition(deviceID, position, motor)
+	function SetPosition(deviceID, position, motor, isMotorReversed)
 		--First, check and see if the token is still valid. Get a new one if it is.
 		local recievedToken = checkTokenExpired()
 		
@@ -195,8 +225,14 @@
 		if p1 ~= nil then
 			ELAN_Trace("Response OK")
 		else
-			ELAN_Trace(string.format("Error: %s", response))
+			ELAN_Trace(string.format("Error: %s", response)) --TODO: create unique responses for different types of errors.
+			ELAN_SetDeviceState ("RED", "Error Sending Position")
 		end
 		ELAN_CloseSocket(socket)
 	end
+
+
+
+
+
 
