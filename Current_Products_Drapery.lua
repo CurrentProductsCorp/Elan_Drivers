@@ -13,6 +13,8 @@
     end
 
 --| Oauth -------------------------------------------------------------------------
+
+
 --[[-------------------------------------------------------
 	Is called when a user hits authorize
 --]]-------------------------------------------------------
@@ -31,7 +33,7 @@
 					.. "&client_secret=" .. CLIENT_SECRET
 					.. "&redirect_uri=" .. ELAN_GetOAuthRedirectURI()
 		--socket interaction
-		local socket = ELAN_CreateTCPClientSocket(HOST,80) --TODO: make this SSLClientSocket(?)
+		local socket = ELAN_CreateTCPClientSocket(HOST,80) --TODO: make this ELAN_CreateSSLClientSocket(?)
 		local isConnected = ELAN_ConnectTCPSocket(socket)
 
 		--response validation
@@ -56,8 +58,15 @@
 
 			iExpiration = ELAN_FindJSONValueByKey(hJSON, hJSON, "expires_in")
 			ELAN_Trace(string.format("Expiration: %s",iExpiration))
+
+			--Resets the Token to 0. If this is not done, the token expiration is added instead of set.
+			--If authorization is somehow done several times within a minute, this prevents the expiration time from getting unreasonably high.
+			ELAN_SetOAuthTokenExpiration(-(ELAN_GetOAuthTokenTTL())) 
+			--Sets the Token expiration to the new time.
 			ELAN_SetOAuthTokenExpiration(iExpiration)
+
 			ELAN_Trace(string.format("isExpired? %s", ELAN_GetOAuthTokenTTL()))
+
 			--Populates the Lighting interface with devices from the server
 			DeviceDiscovery(socket)
 
@@ -102,13 +111,18 @@
 			if(p1 ~= nil) then
 				--response parsing
 				local hJSON = ELAN_CreateJSONMsg(response)
+
 				sAccessToken = ELAN_FindJSONValueByKey(hJSON, hJSON, "access_token")
 				ELAN_SaveOAuthAccessToken(sAccessToken)
+
 				sRefreshToken = ELAN_FindJSONValueByKey(hJSON, hJSON, "refresh_token")
 				ELAN_SaveOAuthRefreshToken(sRefreshToken)
+
 				iExpiration = ELAN_FindJSONValueByKey(hJSON, hJSON, "expires_in")
+
 				ELAN_SetOAuthTokenExpiration(tonumber(iExpiration))
 				ELAN_Trace(string.format("am me expired?? %d",tonumber(iExpiration)))
+
 				ELAN_SetDeviceState ("GREEN", "Connected To Server")
 			else
 				ELAN_CloseSocket(socket)
@@ -165,10 +179,13 @@
 	end
 
 --| System Calls ------------------------------------------------------------------
+
+
 --[[-------------------------------------------------------
 	Called when the slider is set to a new position
 --]]-------------------------------------------------------
 	function EDRV_DimDeviceTo(data, deviceID, deviceType, motor, isMotorReversed)
+		--Check to see if motor reversed is set.
 		isRev = isMotorReversed:find("true") or isMotorReversed:find("yes")
 		if(isRev ~= nil) then
 			ELAN_Trace("motor is reversed")
@@ -177,10 +194,12 @@
 			SetPosition(deviceID, data, motor)
 		end
 	end
+
 --[[-------------------------------------------------------
 	Called when the slider is set to closed
 --]]-------------------------------------------------------
 	function EDRV_ActivateDevice(deviceID, deviceType, motor, isMotorReversed)
+		--Check to see if motor reversed is set.
 		isRev = isMotorReversed:find("true") or isMotorReversed:find("yes")
 		if(isRev ~= nil) then
 			SetPosition(deviceID, 0, motor)
@@ -188,10 +207,12 @@
 			SetPosition(deviceID, 100, motor)
 		end
 	end
+
 --[[-------------------------------------------------------
 	Called when the slider is set to open
 --]]-------------------------------------------------------
 	function EDRV_DeactivateDevice(deviceID, deviceType, motor, isMotorReversed)
+		--Check to see if motor reversed is set.
 		isRev = isMotorReversed:find("true") or isMotorReversed:find("yes")
 		if(isRev ~= nil) then
 			SetPosition(deviceID, 100, motor)
@@ -199,6 +220,7 @@
 			SetPosition(deviceID, 0, motor)
 		end
 	end
+
 --[[-------------------------------------------------------
 	HTTP call for setting the new position
 --]]-------------------------------------------------------
@@ -216,7 +238,7 @@
 					.. "Authorization: Bearer " .. ELAN_GetOAuthAccessToken() .. "\r\n"
 					.. "Content-Type: application/json\r\n"
 					.. "\r\n"
-		local socket = ELAN_CreateTCPClientSocket(HOST,80) --TODO: make this SSLClientSocket(?)
+		local socket = ELAN_CreateTCPClientSocket(HOST,80) --TODO: make this ELAN_CreateSSLClientSocket(?)
 		local JSONMsg = ELAN_CreateJSONMsg(string.format("{\"id\":%d,\"position\":%d,\"motor\":\"%s\"}",deviceID,position,motor))
 		local response = ELAN_DoHTTPExchange(socket, sHTTP, JSONMsg, 5000)
 		ELAN_Trace(string.format("Response: %s", response))
@@ -225,11 +247,12 @@
 		if p1 ~= nil then
 			ELAN_Trace("Response OK")
 		else
-			ELAN_Trace(string.format("Error: %s", response)) --TODO: create unique responses for different types of errors.
+			ELAN_Trace(string.format("Error: %s", response)) --TODO: Create unique responses for different types of errors.
 			ELAN_SetDeviceState ("RED", "Error Sending Position")
 		end
 		ELAN_CloseSocket(socket)
 	end
+
 
 
 
