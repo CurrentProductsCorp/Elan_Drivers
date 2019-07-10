@@ -10,7 +10,7 @@ SCHEMA				= 82
 DEFAULT_PORT		= 80
 
 [SUPPORTED_DEVICES_BEGIN]
-        DIMMER: tags:2 label: ID, Type, Motor
+        DIMMER: tags:4 label: ID, Type, Motor, Swap_Direction
 [SUPPORTED_DEVICES_END]
 
 

@@ -41,31 +41,25 @@
 		local p1, p2
 		p1,p2 = response:find("200 OK")
 		
-		ELAN_TraceActiveSockets()
 		ELAN_Trace(string.format("Response: %s", response))
 
 		if(p1 ~= nil) then
-			--response parsing
-			ELAN_Trace(string.format("p1: %s, p2: %s", tostring(p1), tostring(p2)))			
-
 			local hJSON = ELAN_CreateJSONMsg(response)
 
 			sAccessToken = ELAN_FindJSONValueByKey(hJSON, hJSON, "access_token")
-			ELAN_SaveOAuthAccessToken(sAccessToken)
+			hasAccessToken = ELAN_SetPersistentValue("access_token", sAccessToken)
+			ELAN_Trace(string.format("Got AccessToken: %s", tostring(hasAccessToken)))
 
 			sRefreshToken = ELAN_FindJSONValueByKey(hJSON, hJSON, "refresh_token")
-			ELAN_SaveOAuthRefreshToken(sRefreshToken)
+			hasRefreshToken = ELAN_SetPersistentValue("refresh_token", sRefreshToken)
+			ELAN_Trace(string.format("Got RefreshToken: %s", tostring(hasRefreshToken)))
 
 			iExpiration = ELAN_FindJSONValueByKey(hJSON, hJSON, "expires_in")
 			ELAN_Trace(string.format("Expiration: %s",iExpiration))
 
-			--Resets the Token to 0. If this is not done, the token expiration is added instead of set.
-			--If authorization is somehow done several times within a minute, this prevents the expiration time from getting unreasonably high.
-			ELAN_SetOAuthTokenExpiration(-(ELAN_GetOAuthTokenTTL())) 
-			--Sets the Token expiration to the new time.
-			ELAN_SetOAuthTokenExpiration(iExpiration)
 
-			ELAN_Trace(string.format("isExpired? %s", ELAN_GetOAuthTokenTTL()))
+			--Sets the Token expiration to the new time.
+			ELAN_SetTimer(0, (iExpiration*1000 - 20000))
 
 			--Populates the Lighting interface with devices from the server
 			DeviceDiscovery(socket)
@@ -81,65 +75,57 @@
 	Checks token for refresh needs, cycles if necessary
 	@return boolean for refresh success
 --]]-------------------------------------------------------
-	function checkTokenExpired()
-		ELAN_SetDeviceState ("YELLOW", "Refreshing Token")
-		ELAN_Trace(string.format("Time to live: %d", ELAN_GetOAuthTokenTTL()))
-		if (tonumber(ELAN_GetOAuthTokenTTL()) <= 0) then
-			--create headers and body
-			local sHTTP = "POST /oauth/token HTTP/1.1\r\n"
-						.. "Accept: application/json\r\n"
-						.. "Host: " .. HOST .. "\r\n"
-						.. "Content-Type: application/x-www-form-urlencoded\r\n"
-						.. "\r\n"
-			local sContent = "grant_type=refresh_token"
-						.. "&refresh_token=" .. ELAN_GetOAuthRefreshToken()
-						.. "&client_id=" .. CLIENT_ID
-						.. "&client_secret=" .. CLIENT_SECRET
-			--socket interaction
-			local socket = ELAN_CreateTCPClientSocket(HOST,80)
-			ELAN_ConnectTCPSocketAsync(socket, 5000)
-			
-			ELAN_Trace(string.format("socket: %d", socket))
-			--response validation
-			ELAN_Trace(string.format("Content: %s", sContent))
-			local response = ELAN_DoHTTPExchange(socket, sHTTP, sContent, true, 5000)
-			local p1, p2
-			p1,p2 = response:find("200 OK")
-
-			ELAN_Trace(string.format("Response: %s", response))
-
-			if(p1 ~= nil) then
-				--response parsing
-				local hJSON = ELAN_CreateJSONMsg(response)
-
-				sAccessToken = ELAN_FindJSONValueByKey(hJSON, hJSON, "access_token")
-				ELAN_SaveOAuthAccessToken(sAccessToken)
-
-				sRefreshToken = ELAN_FindJSONValueByKey(hJSON, hJSON, "refresh_token")
-				ELAN_SaveOAuthRefreshToken(sRefreshToken)
-
-				iExpiration = ELAN_FindJSONValueByKey(hJSON, hJSON, "expires_in")
-
-				ELAN_SetOAuthTokenExpiration(tonumber(iExpiration))
-				ELAN_Trace(string.format("am me expired?? %d",tonumber(iExpiration)))
-
-				ELAN_SetDeviceState ("GREEN", "Connected To Server")
-			else
-				ELAN_CloseSocket(socket)
-				ELAN_SetDeviceState ("RED", "Could Not Authorize")
-				--socket comms failed
-				return false
-			end
-			--set new token properly
-			return true
-		else
-			--token wasn't expired
-			ELAN_SetDeviceState ("GREEN", "Connected To Server")
-			return true
+	function EDRV_OnTimer(timer_id)
+		if timer_id ~= 0 then
+			return
 		end
-		--function failed
-		ELAN_SetDeviceState ("RED", "Issue Getting Auth")
-		return false
+		
+		ELAN_SetDeviceState ("YELLOW", "Refreshing Token")
+
+		--create headers and body
+		local sHTTP = "POST /oauth/token HTTP/1.1\r\n"
+					.. "Accept: application/json\r\n"
+					.. "Host: " .. HOST .. "\r\n"
+					.. "Content-Type: application/x-www-form-urlencoded\r\n"
+					.. "\r\n"
+		local sContent = "grant_type=refresh_token"
+					.. "&refresh_token=" .. ELAN_GetPersistentValue("refresh_token")
+					.. "&client_id=" .. CLIENT_ID
+					.. "&client_secret=" .. CLIENT_SECRET
+		--socket interaction
+		local socket = ELAN_CreateTCPClientSocket(HOST,80)
+		ELAN_ConnectTCPSocket(socket)
+		
+		local response = ELAN_DoHTTPExchange(socket, sHTTP, sContent, false, 5000)
+		local p1, p2
+		p1,p2 = response:find("200 OK")
+
+		ELAN_Trace(string.format("Response: %s", response))
+
+		if(p1 ~= nil) then
+			--response parsing
+			local hJSON = ELAN_CreateJSONMsg(response)
+
+			sAccessToken = ELAN_FindJSONValueByKey(hJSON, hJSON, "access_token")
+			hasAccessToken = ELAN_SetPersistentValue("access_token", sAccessToken)
+			ELAN_Trace(string.format("Got AccessToken: %s", tostring(hasAccessToken)))
+
+			sRefreshToken = ELAN_FindJSONValueByKey(hJSON, hJSON, "refresh_token")
+			hasRefreshToken = ELAN_SetPersistentValue("refresh_token", sRefreshToken)
+			ELAN_Trace(string.format("Got RefreshToken: %s", tostring(hasRefreshToken)))
+
+			iExpiration = ELAN_FindJSONValueByKey(hJSON, hJSON, "expires_in")
+
+			ELAN_SetDeviceState ("GREEN", "Connected To Server")
+		else
+			ELAN_CloseSocket(socket)
+			ELAN_SetDeviceState ("RED", "Could Not Authorize")
+			--socket comms failed
+			return false
+		end
+		ELAN_CloseSocket(socket)
+		--set new token properly
+		return true
 	end
 
 --[[-------------------------------------------------------
@@ -151,7 +137,7 @@
 		local sHTTP = "GET /v1/devices/concise HTTP/1.1\r\n"
 					.. "Accept: application/json\r\n"
 					.. "Host: " .. HOST .. "\r\n"
-					.. "Authorization: Bearer " .. ELAN_GetOAuthAccessToken() .. "\r\n"
+					.. "Authorization: Bearer " .. ELAN_GetPersistentValue("access_token") .. "\r\n"
 					.. "Content-Type: application/x-www-form-urlencoded\r\n"
 					.. "\r\n"
 		local response = ELAN_DoHTTPExchange(socket, sHTTP, 5000)
@@ -225,17 +211,10 @@
 	HTTP call for setting the new position
 --]]-------------------------------------------------------
 	function SetPosition(deviceID, position, motor, isMotorReversed)
-		--First, check and see if the token is still valid. Get a new one if it is.
-		local recievedToken = checkTokenExpired()
-		
-		if not(recievedToken) then
-			ELAN_Trace("ERROR: Token could not be refreshed")
-			return
-		end
 		local sHTTP = "POST /v1/position/reduced HTTP/1.1\r\n"
 					.. "Accept: application/json\r\n"
 					.. "Host: " .. HOST .. "\r\n"
-					.. "Authorization: Bearer " .. ELAN_GetOAuthAccessToken() .. "\r\n"
+					.. "Authorization: Bearer " .. ELAN_GetPersistentValue("access_token") .. "\r\n"
 					.. "Content-Type: application/json\r\n"
 					.. "\r\n"
 		local socket = ELAN_CreateTCPClientSocket(HOST,80) --TODO: make this ELAN_CreateSSLClientSocket(?)
@@ -252,6 +231,8 @@
 		end
 		ELAN_CloseSocket(socket)
 	end
+
+
 
 
 
