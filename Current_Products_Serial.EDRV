@@ -3,10 +3,13 @@ DRIVER_VERSION		= 1.0.0
 VENDOR				= Current Product Corp.'s App
 DRIVER_NAME			= Current_Products_Serial
 LUA_SRC				= Current_Products_Serial.lua
+LUA_SRC 			= Current_Products_Serial_Helper.lua
+LUA_SRC 			= Current_Products_Serial_Defs.lua
 SCHEMA				= 82
+CONFIG_BUTTON_1		= Device Discovery
+CONFIG_BUTTON_2		= Run Tests
 
-
-BAUD_RATE		= 9600
+BAUD_RATE		= 115200
 FLOW_CONTROL	= NONE
 PARITY			= NONE
 DATA_BITS		= 8
@@ -15,6 +18,11 @@ STOP_BITS		= 1
 [RESOURCES_BEGIN]
 [RESOURCES_END]
 
+[ENDUSER_CONFIG_STRINGS_BEGIN]
+	CFG_BUTTON_1: label:User Label 101 tag:UBTN_1 button_text:Button 1
+	CFG_BUTTON_2: label:User Label 102 tag:UBTN_2 button_text:Button 2
+[ENDUSER_CONFIG_STRINGS_END]
+
 [SUPPORTED_DEVICES_BEGIN]
-	DIMMER: tags: 3 label: ID, Name, Type
+	DIMMER: tags: 4 label: ID, Name, Type, Swap Direction
 [SUPPORTED_DEVICES_END]

@@ -62,7 +62,7 @@
 			ELAN_SetTimer(0, (iExpiration*1000 - 20000))
 
 			--Populates the Lighting interface with devices from the server
-			DeviceDiscovery(socket)
+			--DeviceDiscovery(socket)
 
 			ELAN_SetDeviceState ("GREEN", "Connected To Server")
 		else
@@ -132,7 +132,10 @@
 	Populates the configurator with all the devices from
 	the server
 --]]-------------------------------------------------------
-	function DeviceDiscovery(socket)
+	function DeviceDiscovery()
+		local socket = ELAN_CreateTCPClientSocket(HOST,80) --TODO: make this ELAN_CreateSSLClientSocket(?)
+		local isConnected = ELAN_ConnectTCPSocket(socket)
+
 		ELAN_SetDeviceState ("YELLOW", "GETTING DEVICES")
 		local sHTTP = "GET /v1/devices/concise HTTP/1.1\r\n"
 					.. "Accept: application/json\r\n"
@@ -161,6 +164,7 @@
 				ELAN_AddLightingDevice("DIMMER",deviceName,deviceID,deviceType,"blackout","false")
 			end
 		end
+		ELAN_SetDeviceState ("GREEN", "Connected to server")
 		ELAN_CloseSocket(socket)
 	end
 
@@ -207,6 +211,12 @@
 		end
 	end
 
+	function EDRV_ExecuteConfigProc(proc_id)
+		if proc_id == 1 then
+			DeviceDiscovery()
+		end
+	end
+
 --[[-------------------------------------------------------
 	HTTP call for setting the new position
 --]]-------------------------------------------------------
@@ -231,6 +241,7 @@
 		end
 		ELAN_CloseSocket(socket)
 	end
+
 
 
 

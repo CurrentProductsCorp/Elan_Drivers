@@ -1,62 +1,164 @@
+-- Current_Products_Serial.lua
+
+
+
+--| Globals -----------------------------------------------------------------------
+	
+	-- Queue to hold outgoing messages with no replies.
+	queue = {}
+	-- List of devices added.
+	dev_list = {}
+
+
+
 --| Init --------------------------------------------------------------------------
-    function EDRV_Init()
-    -- called when the driver starts up
+    
+	function EDRV_Init()
+	    -- called when the driver starts up
+		-- May be used to get all the current devices later
     end
+
 
 
 --| System Calls ------------------------------------------------------------------
 
---[[-------------------------------------------------------
-	Called when the slider is set to open
---]]-------------------------------------------------------
-    function EDRV_ActivateDevice(device_tag)
-    -- Instruct the driver to turn the device on
-		sCmd = string.format("%02x%04x%04x%02x%02x%02s", string.byte('X'), 1, 0xFF, 1, 2, 0)
-		local crc = 0
-		for i=1,string.len(sCmd),2 do
-			calculated_crc = Calculate_CRC(string.sub(sCmd,i,i+1))
-			crc = BitXOR(crc, calculated_crc)
-		end
-		sCmd = sCmd .. string.format("%02x",crc)
+	--[[-------------------------------------------------------
+		Called when the slider is set to open
+	--]]-------------------------------------------------------
+    function EDRV_ActivateDevice(device_id, device_name, device_sub_type, is_reversed)
+    -- Instruct the driver to turn the device on (CLOSE)
+		level = (is_reversed == "true") and 0 or 100
+		sCmd = Generate_Msg(device_id, 1, MOVEMENT, device_sub_type, level, 0)
 		ELAN_Trace(string.format("Sending: %s", sCmd))
-		response = ELAN_SendToDeviceStringHEX(sCmd)
-		ELAN_Trace(string.format("Response: %s", response))
+		queue[string.format("%08x%s",device_id,device_sub_type)] = {sCmd}
+		-- If no response, try sending again.
+		resend_count = 0
+		while resend_count < 3 do
+			if queue[string.format("%08x%s",device_id,device_sub_type)] == nil then 
+				break
+			end
+			ELAN_Trace(string.format("Sending: %s", sCmd))
+			response = ELAN_SendToDeviceStringHEX(sCmd)
+			ELAN_Trace(string.format("Response: %s", response))
+			ELAN_Sleep(30)
+			Print_Queue()
+			resend_count = resend_count + 1
+		end
     end
 
---[[-------------------------------------------------------
-	Called when the slider is set to close
---]]-------------------------------------------------------
-    function EDRV_DeactivateDevice(device_tag)
-    -- Instruct the driver to turn the device off
-		ELAN_Trace(string.format("Device ID: %s", device_tag))
-		sCmd = string.format("%02x%04x%04x%02x%02x%02s", string.byte('X'), 1, 0xFF, 1, 2, 100)
-		local crc = 0
-		for i=1,string.len(sCmd),2 do
-			calculated_crc = Calculate_CRC(string.sub(sCmd,i,i+1))
-			crc = BitXOR(crc, calculated_crc)
+	--[[-------------------------------------------------------
+		Called when the slider is set to close
+	--]]-------------------------------------------------------
+    function EDRV_DeactivateDevice(device_id, device_name, device_sub_type, is_reversed)
+    -- Instruct the driver to turn the device off (OPEN)
+		level = (is_reversed == "true") and 100 or 0
+		sCmd = Generate_Msg(device_id, 1, MOVEMENT, device_sub_type, level, 0)
+		queue[string.format("%08x%s",device_id,device_sub_type)] = {sCmd}
+		-- If no response, try sending again.
+		resend_count = 0
+		while resend_count < 3 do
+			if queue[string.format("%08x%s",device_id,device_sub_type)] == nil then 
+				break
+			end
+			ELAN_Trace(string.format("Sending: %s", sCmd))
+			response = ELAN_SendToDeviceStringHEX(sCmd)
+			ELAN_Trace(string.format("Response: %s", response))
+			ELAN_Sleep(30)
+			resend_count = resend_count + 1
 		end
-		sCmd = sCmd .. string.format("%02x",crc)
-		ELAN_Trace(string.format("Sending: %s", sCmd))
-		response = ELAN_SendToDeviceStringHEX(sCmd)
-		ELAN_Trace(string.format("Response: %s", response))
     end
 
---[[-------------------------------------------------------
-	Called when the slider is set to a new position
---]]-------------------------------------------------------
-    function EDRV_DimDeviceTo(level, device_tag)
+	--[[-------------------------------------------------------
+		Called when the slider is set to a new position
+	--]]-------------------------------------------------------
+    function EDRV_DimDeviceTo(level, device_id, device_name, device_sub_type, is_reversed)
+	ELAN_Trace(string.format("Level: %d", level))
+	level = (is_reversed == "true") and 100 - level or level
+	size = string.len(tostring(level))
     -- Instruct the driver to set the device to a level
-		sCmd = string.format("%02x%04x%04x%02x%02x%02s", string.byte('X'), 1, 0xFF, 1, 2, String_To_Bytes(level))
-		local crc = 0
-		for i=1,string.len(sCmd),2 do
-			calculated_crc = Calculate_CRC(string.sub(sCmd,i,i+1))
-			crc = BitXOR(crc, calculated_crc)
+		sCmd = Generate_Msg(device_id, 1, MOVEMENT, device_sub_type, level, 0)
+		queue[string.format("%08x%s",device_id,device_sub_type)] = {sCmd}
+		-- If no response, try sending again.
+		resend_count = 0
+		while resend_count < 3 do
+			if queue[string.format("%08x%s",device_id,device_sub_type)] == nil then 
+				break
+			end
+			ELAN_Trace(string.format("Sending: %s", sCmd))
+			response = ELAN_SendToDeviceStringHEX(sCmd)
+			ELAN_Trace(string.format("Response: %s", response))
+			--response = ELAN_SendToDeviceStringHEX(sCmd)
+			--ELAN_Trace(string.format("Response: %s", response))
+			ELAN_Sleep(30)
+			Print_Queue()
+			resend_count = resend_count + 1
 		end
-		sCmd = sCmd .. string.format("%02x",crc)
-		ELAN_Trace(string.format("Sending: %s", sCmd))
-		response = ELAN_SendToDeviceStringHEX(sCmd)
-		ELAN_Trace(string.format("Response: %s", response))
+
     end
+
+	--[[-------------------------------------------------------
+		Tells the driver what to do with each configuration
+		button
+	--]]-------------------------------------------------------
+	function EDRV_ExecuteConfigProc(proc_id)
+		ELAN_Trace(string.format("proc_id = %s", proc_id))
+		if proc_id == 1 then
+			DeviceDiscovery()
+		elseif proc_it == 2 then
+			ELAN_Trace("Clearing Queue")
+			for i,values in ipairs(queue) do
+				queue[i] = nil
+				--data = string.format()
+				--EDRV_ProcessIncoming(data)
+			end
+		end
+	end
+
+	--[[-------------------------------------------------------
+		Called when the ELAN box gets a new message
+	--]]-------------------------------------------------------
+    function EDRV_ProcessIncoming(data)
+		ELAN_Trace("Incoming Data: %s", data)
+		-- Is packed empty or nil
+		if data == nil or string.len(tostring(data)) == 0 then
+			-- throw out packet?
+			return
+		end
+
+		-- Debugging: print out full packet.
+		for i=1, string.len(tostring(data)), 1 do
+			ELAN_Trace(string.format("   %x", string.byte(data, i)))
+		end
+
+		-- Check for the packet starting with 'X'
+		start_char = string.byte(data, 1)
+		if start_char == 0x58 then
+			packet_size = string.byte(data, 2)
+			payload_length = string.byte(data,12)
+			if packet_size == nil or payload_length == nil then
+				ELAN_Trace(string.format("Payload was nil"))
+				-- Handle error
+			elseif packet_size ~= (payload_length + HEADER_SIZE) then
+				ELAN_Trace(string.format("Length Mismatch; Packet Length %d but payload length + header %d",packet_size,(payload_length+13)))
+				-- Handle error
+			end
+
+	 		crc = string.byte(data,length)
+			-- Calculate CRC
+			local check_crc = Calculate_Full_CRC(data)
+
+			-- Check CRC
+			if(check_crc ~= crc) then
+				ELAN_Trace(string.format("CRC Incorrect; Received %02x but calculated %02x",crc,check_crc))
+			end
+
+			handleData(data)
+		end
+    end
+
+
+
+--| Unused ------------------------------------------------------------------------ 
 
     function EDRV_ActivateScene(device_tag)
     -- Instruct the driver to turn the scene on
@@ -93,118 +195,3 @@
     function EDRV_KeypadButtonRelease(button_tag, device_tag)
     -- Notification from the core that a keypad button was released in the g! UI
     end
-
-    function EDRV_ProcessIncoming(data)
-		ELAN_Trace(string.format("Data: %s", data));
-    -- Process data sent from the device
-    end
-
---| Helper Functions --------------------------------------------------------------
-
---[[-------------------------------------------------------
-	Converts each ASCII value in a string into a byte,
-	then puts the byte value into a string.
---]]-------------------------------------------------------
-	function String_To_Bytes(value)
-		final_string = ""
-		for i=1, string.len(value) do
-			final_string = final_string .. string.format("%02x",string.byte(value,i))
-		end
-		ELAN_Trace(string.format("Result:        ",final_string))
-		return final_string
-	end
-
---[[-------------------------------------------------------
-	Calculates the CRC value based on the input string.
---]]-------------------------------------------------------
-	function Calculate_CRC(value)
-		--ELAN_Trace(string.format("Value: %02x", tonumber(value,16)))
-		generator = 0x1D
-		if(value == nil) then
-			ELAN_Trace("CRC: nil")
-			return 0
-		end
-		crc = tonumber(value,16)
-		for i=0,7 do
-			if (BitAND(crc,0x80) ~= 0) then
-				crc = BitXOR( Lshift( crc, 1) , generator)
-				ELAN_Trace(string.format("Anded:   %02x",crc))
-			else
-				crc = Lshift(crc, 1)
-				ELAN_Trace(string.format("Shifted: %02x",crc))
-			end
-		end
-		ELAN_Trace(string.format("CRC: %02x",crc))
-		return crc
-	end
-
---[[-------------------------------------------------------
-	Bitwise AND for the CRC function
---]]-------------------------------------------------------
-	function BitAND(a,b)
-	    local p,c=1,0
-	    while a>0 and b>0 do
-	        local ra,rb=a%2,b%2
-	        if ra+rb>1 then c=c+p end
-	        a,b,p=(a-ra)/2,(b-rb)/2,p*2
-	    end
-	    return c
-	end
-
---[[-------------------------------------------------------
-	Bitwise OR for the CRC function
---]]-------------------------------------------------------
-	function BitOR(a,b)
-	    local p,c=1,0
-	    while a+b>0 do
-	        local ra,rb=a%2,b%2
-	        if ra+rb>0 then c=c+p end
-	        a,b,p=(a-ra)/2,(b-rb)/2,p*2
-	    end
-	    return c
-	end
-
---[[-------------------------------------------------------
-	Bitwise XOR for the CRC function
---]]-------------------------------------------------------	
-	function BitXOR(a,b)
-	    local p,c=1,0
-	    while a>0 and b>0 do
-	        local ra,rb=a%2,b%2
-	        if ra~=rb then c=c+p end
-	        a,b,p=(a-ra)/2,(b-rb)/2,p*2
-	    end
-	    if a<b then a=b end
-	    while a>0 do
-	        local ra=a%2
-	        if ra>0 then c=c+p end
-	        a,p=(a-ra)/2,p*2
-	    end
-	    return c
-	end
-
---[[-------------------------------------------------------
-	Bitwise Left Shift for the CRC function
---]]-------------------------------------------------------
-	function Lshift(x, by)
-	  return BitAND((x * 2 ^ by),0xff)
-	end
-
---[[-------------------------------------------------------
-	Bitwise Right Shift for the CRC function
---]]-------------------------------------------------------	
-	function Rshift(x, by)
-	  return math.floor(x / 2 ^ by)
-	end
-
-
-
-
-
-
-
-
-
-
-
-
