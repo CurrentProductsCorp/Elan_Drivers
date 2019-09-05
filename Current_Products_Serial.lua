@@ -75,7 +75,23 @@
     function EDRV_DimDeviceTo(level, deviceID, deviceName, deviceSubType, isReversed)
 	--ELAN_Trace(string.format("Level: %d", level))
 	-- Ternary for reversing motor
-	
+	ELAN_Trace(string.format("Device ID: %s | %x", deviceID, deviceID))
+
+	--test 1
+	numberId = tonumber(deviceID)
+	ohDearGodPleaseWork = string.format("%x", numberId)
+	ELAN_Trace(string.format( "It'd be cool if this worked: %s | %x", ohDearGodPleaseWork, ohDearGodPleaseWork))
+
+	--test 2
+	reversePleaseWork = ""
+	local i = 0
+	while i < string.len( ohDearGodPleaseWork ) do
+		reversePleaseWork = string.sub( ohDearGodPleaseWork, i, i+1 ) .. reversePleaseWork
+		i = i + 2
+	end
+	ELAN_Trace(string.format( "Attempt to Reverse: %s | %x", reversePleaseWork, reversePleaseWork ))
+
+	--current method
 	local byte1, byte2, byte3, byte4 = string.byte(deviceID,1,4)
 	ELAN_Trace(string.format("BYTES: %02x%02x%02x%02x", byte1, byte2, byte3, byte4))
 	deviceID = BytesToAddr(byte1, byte2, byte3, byte4)
