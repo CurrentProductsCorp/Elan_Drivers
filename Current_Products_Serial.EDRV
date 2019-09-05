@@ -7,7 +7,7 @@ LUA_SRC 			= Current_Products_Serial_Helper.lua
 LUA_SRC 			= Current_Products_Serial_Defs.lua
 SCHEMA				= 82
 CONFIG_BUTTON_1		= Device Discovery
-CONFIG_BUTTON_2		= Run Tests
+CONFIG_BUTTON_2		= Announce
 
 BAUD_RATE		= 115200
 FLOW_CONTROL	= NONE
@@ -24,5 +24,5 @@ STOP_BITS		= 1
 [ENDUSER_CONFIG_STRINGS_END]
 
 [SUPPORTED_DEVICES_BEGIN]
-	DIMMER: tags: 4 label: ID, Name, Type, Swap Direction
+	DIMMER: tags: 3 label: ID, Type, Swap Direction
 [SUPPORTED_DEVICES_END]
