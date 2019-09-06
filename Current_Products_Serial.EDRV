@@ -7,7 +7,6 @@ LUA_SRC 			= Current_Products_Serial_Helper.lua
 LUA_SRC 			= Current_Products_Serial_Defs.lua
 SCHEMA				= 82
 CONFIG_BUTTON_1		= Device Discovery
-CONFIG_BUTTON_2		= Announce
 
 BAUD_RATE		= 115200
 FLOW_CONTROL	= NONE
@@ -20,7 +19,6 @@ STOP_BITS		= 1
 
 [ENDUSER_CONFIG_STRINGS_BEGIN]
 	CFG_BUTTON_1: label:User Label 101 tag:UBTN_1 button_text:Button 1
-	CFG_BUTTON_2: label:User Label 102 tag:UBTN_2 button_text:Button 2
 [ENDUSER_CONFIG_STRINGS_END]
 
 [SUPPORTED_DEVICES_BEGIN]
