@@ -9,6 +9,7 @@
 	--]]-------------------------------------------------------
 	function handleData(data)
 		-- Since valid, get all other bytes
+		ELAN_Trace(string.format("Data To String: %s", tostring(data)))
 		payloadLength = string.byte(data, PAYLOAD_LENGTH_LOCATION)
 		requestByte = string.byte(data, REQUEST_BYTE_LOCATION)
 		toAddr1, toAddr2, toAddr3, toAddr4 = string.byte(data, TO_ADDR_LOCATION, TO_ADDR_LOCATION + 4)
@@ -17,7 +18,6 @@
 		toAddress =  BytesToAddr(toAddr1, toAddr2, toAddr3, toAddr4)
 		fromAddress = BytesToAddr(fromAddr1, fromAddr2, fromAddr3, fromAddr4)
 	
-		--ELAN_Trace(string.format("Data To String: %s", tostring(data)))
 		--ELAN_Trace(string.format("RequestByte: %02x", requestByte ))
 		if payloadLength > 0 and string.len(tostring(data)) > HEADER_SIZE then
 			payload = {string.byte(data, PAYLOAD, (PAYLOAD_LOCATION + payloadLength))}
@@ -25,39 +25,32 @@
 			--ELAN_Trace(string.format("Command Byte: %02x", commandByte))
 		end
 		-- Request
-		if requestByte == 0x01 then
-			ELAN_Trace("Has request flag")
+		if requestByte == REQ then
+			ELAN_Trace("        Has request flag")
 		-- Acknowledged
-		elseif requestByte == 0x02 then
-			ELAN_Trace("Has Acknowledge flag")
+		elseif requestByte == ACK then
+			ELAN_Trace("        Has Acknowledge flag")
 			if(payloadLength > 0) then
 				HandleAcknowledgeByte(data, fromAddress, payloadLength, commandByte);
 			end
 		-- Not Acknowledged
-		elseif requestByte == 0x04 then
-			ELAN_Trace("Has Not Acknowledged flag")
+		elseif requestByte == NAK then
+			ELAN_Trace("        Has Not Acknowledged flag")
+		-- Has Error
+		--elseif requestByte == ERR then
+		--	ELAN_Trace("Has Error")
+		--	-- TODO: Get specific error
 		-- Announce
-		elseif requestByte == 0x40 then
-			ELAN_Trace("Has announce packet")
+		elseif requestByte == ANN then
+			ELAN_Trace("        Has announce packet")
 			if(payloadLength > 0) then
 				HandleAnnounceByte(data, fromAddress);
 			end
-		-- Has Error
-		elseif requestByte == 0x08 then
-			ELAN_Trace("Has Error")
-			-- TODO: Get specific error
+
 		-- Heartbeat
-		elseif requestByte == 0x80 then
-			ELAN_Trace("Has Heartbeat Flag")
+		elseif requestByte == HBT then
+			ELAN_Trace("        Has Heartbeat Flag")
 		-- If it isn't an announce packet, see if there's a payload.
-		-- elseif(length > 12) then
-		--	payloadString = string.sub(tostring(data), 12, length-1)
-		--	ELAN_Trace(string.format("Payload: [%s]", payloadString));
-		--	dataLength = string.len(payloadString)
-		--	for i=1, dataLength, 1 do
-		--		ELAN_Trace(string.format("Byte: %x ", string.byte(payloadString, i)))
-				-- payloadString = payloadString .. string.format("%x ", string.byte(payloadString, i))
-		--	end		
 		end	
 	end
 
@@ -80,8 +73,9 @@
 	
 		targetDeviceAddr = ReverseAddr(targetDeviceAddr)		
 		
-		if(string.byte(data,1) ~= 0x58) then
-			ELAN_Trace("BAD START CHAR")
+		ELAN_Trace(string.format("Preamble: %s", StringToBytes(string.sub(data,0,4))))
+		if(StringToBytes(string.sub(data,0,4)) ~= "fe161616") then
+			ELAN_Trace("BAD Preamble")
 		end
 		if(targetDeviceAddr ~= fromAddress) then
 			ELAN_Trace("ADDRESS MISMATCH")
@@ -111,8 +105,8 @@
 			deviceNumMotors = GetNumberMotors(string.sub(data, PAYLOAD_LOCATION, (PAYLOAD_LOCATION + payloadLength)))
 			--ELAN_Trace(string.format("Number of Motors: %02x", deviceNumMotors))
 			if deviceNumMotors == 0x03 and deviceNumMotors ~= 0xFF then
-				ELAN_AddLightingDevice("DIMMER", fromAddress, fromAddress.. " Motor 1", "blackout", "false")
-				ELAN_AddLightingDevice("DIMMER", fromAddress, fromAddress.. " Motor 2", "sheer", "false")
+				ELAN_AddLightingDevice("DIMMER", fromAddress.. " Motor 1", fromAddress, "blackout", "false")
+				ELAN_AddLightingDevice("DIMMER", fromAddress.. " Motor 2", fromAddress, "sheer", "false")
 			elseif deviceNumMotors == 0x01 then
 				ELAN_AddLightingDevice("DIMMER", fromAddress, fromAddress.. "", "blackout", "false")
 			elseif deviceNumMotors == 0x02 then
@@ -140,7 +134,7 @@
 		Makes a new device if the device doesn't already exist
 	--]]-------------------------------------------------------
 	function HandleAnnounceByte(data, fromAddress)
-		sCmd = string.format("%02x%02x%08x%08x%02x%02x%02s", string.byte('X'), 0x0E, fromAddress, 0x00000064, 1, 1, DEVICE_INFO)
+		sCmd = string.format("%08x%02x%08x%08x%02x%02x%02s", 0xFE161616, 0x0E, fromAddress, 0x00000064, 1, 1, DEVICE_INFO)
 		local crc = 0
 		crc = CalculateFullCRC(sCmd)
 		sCmd = sCmd .. string.format("%02x",crc)
@@ -180,7 +174,7 @@
 		the device list
 	--]]-------------------------------------------------------
 	function DeviceDiscovery()
-		sCmd = string.format("%02x%02x%08x%08x%02x%02x%02x", string.byte('X'), 0x0E, 0xFFFFFFFF, 0x00000064, 1, 1, DEVICE_INFO)
+		sCmd = string.format("%08x%02x%08x%08x%02x%02x%02x", 0xFE161616, 0x11, 0xFFFFFFFF, 0x00000064, 1, 1, DEVICE_INFO)
 		local crc = 0
 		crc = CalculateFullCRC(sCmd)
 		sCmd = sCmd .. string.format("%02x",crc)
@@ -204,7 +198,7 @@
 		elseif (deviceSubType == "sheer") then
 			typeByte = 0x02
 		end
-		packet = string.format("%02x",START_CHAR)
+		packet = string.format("%08x", PREAMBLE)
 		packetMsg = ""
 		if payloadType == MOVEMENT then
 			packetMsg = string.format("%02x%02x%02x",MOVEMENT,typeByte,position)
@@ -220,7 +214,7 @@
 			packetMsg = string.format("%02x%02x",JOG,typeByte)
 		elseif payloadType == SMART_ASSIST then
 			packetMsg = string.format("%02x%02x",SMART_ASSIST,toggleByte)
-		end
+		end		
 		payloadSize = (string.len(packetMsg)/2)
 		pktSize = HEADER_SIZE + payloadSize
 		--ELAN_Trace(string.format("payloadSize: %02x",payloadSize))
@@ -230,7 +224,7 @@
 
 		crc = CalculateFullCRC(packet)
 		packet = packet .. string.format("%02x",crc)
-		
+
 		return packet
 	end
 
@@ -273,7 +267,7 @@
 		match. 
 	--]]-------------------------------------------------------
 	function GenerateErrorMsg(toAddr, errType, commandType, optionsByte)
-		packet = string.format("%02x%0x02", START_CHAR,0x10,toAddr,0,ERR,0x03,errType,commandType,optionsByte)
+		packet = string.format("%08x%0x02", PREAMBLE,0x10,toAddr,0,ERR,0x03,errType,commandType,optionsByte)
 		crc = CalculateFullCRC(packet)
 		packet = packet .. string.format("%02x",crc)		
 		return packet
@@ -336,11 +330,12 @@
 		reversedID = ""
 		local i = 0
 		strLen = string.len( deviceIDString )
-
+		
 		for i=1, strLen, 2 do
+			ELAN_Trace(string.format("ReversedID: %s",reversedID))
 			reversedID = string.sub( deviceIDString , i, i+1 ) .. reversedID 
 		end
-		--ELAN_Trace(string.format( "Attempt to Reverse: %x", tonumber(reversedID, 16)))
+		ELAN_Trace(string.format( "Attempt to Reverse: %x", tonumber(reversedID, 16)))
 		return (tonumber(reversedID, 16))
 	end
 
@@ -449,5 +444,12 @@
 
 
 --| Debug -------------------------------------------------------------------------
+
+
+
+
+
+
+
 
 

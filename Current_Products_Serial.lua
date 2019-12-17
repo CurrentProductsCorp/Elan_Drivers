@@ -72,13 +72,6 @@
 		ELAN_Trace(string.format("procID = %s", procID))
 		if procID == 1 then
 			DeviceDiscovery()
-		elseif procID == 2 then
-			--ELAN_Trace("Clearing Command List")
-			--for i,values in ipairs(command_list) do
-			--	commandList[i] = nil
-				--data = string.format()
-				--EDRV_ProcessIncoming(data)
-			--end
 		end
 	end
 
@@ -86,10 +79,10 @@
 		Called when the ELAN box gets a new message
 	--]]-------------------------------------------------------
     function EDRV_ProcessIncoming(data)
-		ELAN_Trace(string.format("    PROCESSING INCOMING DATA: %s", data))
+		ELAN_Trace(string.format("    PROCESSING INCOMING DATA: %s", StringToBytes(string.sub(data,0,30))))
 		-- Is packed empty or nil
 		if string.len(tostring(data)) == 0 then
-			-- throw out packet?
+			-- throw out packet.
 			return
 		end
 
@@ -99,11 +92,15 @@
 --		end
 
 		-- Check for the packet starting with 'X'
-		startChar = string.byte(data, 1)
-		while startChar == 0x58 do
+--		startChar = string.byte(data, 1)
+		preamble = StringToBytes(string.sub(data,0,4))
+		ELAN_Trace(string.format("Preamble %s is %s",preamble,tostring(preamble == "fe161616")))
+		while preamble == "fe161616" do
 			ELAN_Trace(string.format("    Packet: %s", StringToBytes(data)))
-			packetSize = string.byte(data, 2)
-			payloadLength = string.byte(data,12)
+			packetSize = string.byte(data, PACKET_SIZE_LOCATION)
+			payloadLength = string.byte(data, PAYLOAD_LENGTH_LOCATION)
+			ELAN_Trace(string.format("packetSize: %02x", packetSize))
+			ELAN_Trace(string.format("packetLength: %02x", payloadLength))
 			-- if packet_size == nil or payload_length == nil then
 			-- 	ELAN_Trace(string.format("Payload was nil"))
 				-- TODO: Handle error
@@ -112,7 +109,6 @@
 			if (not packetSize or not payloadLength or packetSize ~= (payloadLength + HEADER_SIZE)) then
 				ELAN_Trace(string.format("Length Mismatch; Packet Length %d but payload length + header %d",packetSize,(payloadLength+13)))
 				return
-				-- TODO: Handle error
 			end
 		
 	 		local crc = string.byte(data,packetSize)
@@ -122,14 +118,13 @@
 			-- Check CRC
 			if(checkCRC ~= crc) then
 				ELAN_Trace(string.format("CRC Incorrect; Received %02x but calculated %02x",crc,checkCRC))
-				-- TODO: Handle error
 			end
 			handleData(data)
 			data = string.sub(data,packetSize+1)
 			if data ~= nil then
-				startChar = string.byte(data,1)			
+				preamble = StringToBytes(string.sub(data,0,4))			
 			else 
-				startChar = 'A'
+				preamble = 'A'
 			end
 		end
     end
@@ -173,5 +168,11 @@
     function EDRV_KeypadButtonRelease(buttonTag, deviceTag)
     -- Notification from the core that a keypad button was released in the g! UI
     end
+
+
+
+
+
+
 
 

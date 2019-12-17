@@ -5,7 +5,7 @@ AUTHENTICATION		= OAUTH
 DRIVER_NAME			= Current_Products_Drapery
 LUA_SRC				= Current_Products_Drapery.lua
 SCHEMA				= 82
-
+CONFIG_BUTTON_1		= Device Discovery
 
 DEFAULT_PORT		= 80
 
