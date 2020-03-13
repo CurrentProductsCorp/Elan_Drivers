@@ -1,15 +1,18 @@
 --| Initialization ----------------------------------------------------------------
     function EDRV_Init()
+		ELAN_Trace(string.format("OAuthRedirectURI: %s", ELAN_GetOAuthRedirectURI()))
     -- called when the driver starts up
 		HOST = "api.currentproducts.io"
 		CLIENT_ID = "ELANdriver"
 		CLIENT_SECRET = "ELANsecret"
 		local sAuthURL = "https://" .. HOST .. "/oauth/authorize?"
 				.. "client_id=" .. CLIENT_ID
+				.. "&client_secret=" .. CLIENT_SECRET
 				.. "&response_type=code"
-				.. "&redirect_uri=" .. ELAN_GetOAuthRedirectURI()
+				.. "&redirect_uri=" .. "https://auth.corebrandsdev.net/oauth.htm" -- ELAN_GetOAuthRedirectURI()
 				.. "&state=" .. ELAN_GetOAuthState()
 		ELAN_InitOAuthorizeURL(sAuthURL)
+		ELAN_Trace(string.format("Thing we're checking: %s", ELAN_GetOAuthState()))
     end
 
 --| Oauth -------------------------------------------------------------------------
@@ -19,6 +22,7 @@
 	Is called when a user hits authorize
 --]]-------------------------------------------------------
 	function EDRV_RecvOAuthorizationCode( sAuthCode )
+		ELAN_Trace(string.format("OAuthRedirectURI: %s", ELAN_GetOAuthRedirectURI()))
 		ELAN_SetDeviceState ("YELLOW", "Authorizing")
 		--create headers and body
 		local sHTTP = "POST /oauth/token HTTP/1.1\r\n"
@@ -31,7 +35,7 @@
 					.. "&code=" .. sAuthCode
 					.. "&client_id=" .. CLIENT_ID
 					.. "&client_secret=" .. CLIENT_SECRET
-					.. "&redirect_uri=" .. ELAN_GetOAuthRedirectURI()
+					.. "&redirect_uri=" .. "https://auth.corebrandsdev.net/oauth.htm" --ELAN_GetOAuthRedirectURI()
 		--socket interaction
 		local socket = ELAN_CreateTCPClientSocket(HOST,80) --TODO: make this ELAN_CreateSSLClientSocket(?)
 		local isConnected = ELAN_ConnectTCPSocket(socket)
@@ -67,7 +71,7 @@
 			ELAN_SetDeviceState ("GREEN", "Connected To Server")
 		else
 			ELAN_CloseSocket(socket)
-			ELAN_SetDeviceState ("RED", "Could Not Authorize")
+			ELAN_SetDeviceState ("RED", "Could Not Authorize (1)")
 		end
 	end
 
@@ -119,7 +123,7 @@
 			ELAN_SetDeviceState ("GREEN", "Connected To Server")
 		else
 			ELAN_CloseSocket(socket)
-			ELAN_SetDeviceState ("RED", "Could Not Authorize")
+			ELAN_SetDeviceState ("RED", "Could Not Authorize (After Timer)")
 			--socket comms failed
 			return false
 		end
@@ -241,6 +245,10 @@
 		end
 		ELAN_CloseSocket(socket)
 	end
+
+
+
+
 
 
 

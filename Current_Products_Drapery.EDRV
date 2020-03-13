@@ -9,10 +9,14 @@ CONFIG_BUTTON_1		= Device Discovery
 
 DEFAULT_PORT		= 80
 
+[CONFIG_DROPDOWNS_BEGIN]
+		CFG_DROPDOWN: label:Dropdown Label 1 tag:DDTag_1
+			Item 1
+			Item 2
+		CFG_DROPDOWN_END
+[CONFIG_DROPDOWNS_END]
+
 [SUPPORTED_DEVICES_BEGIN]
         DIMMER: tags:4 label: ID, Type, Motor, Swap_Direction
 [SUPPORTED_DEVICES_END]
-
-
-
 
