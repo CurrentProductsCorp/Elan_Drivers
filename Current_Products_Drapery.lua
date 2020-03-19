@@ -12,7 +12,7 @@
 				.. "&redirect_uri=" .. "https://auth.corebrandsdev.net/oauth.htm" -- ELAN_GetOAuthRedirectURI()
 				.. "&state=" .. ELAN_GetOAuthState()
 		ELAN_InitOAuthorizeURL(sAuthURL)
-		ELAN_Trace(string.format("Thing we're checking: %s", ELAN_GetOAuthState()))
+		ELAN_Trace(string.format("Thing we're checking: %s", sAuthURL))
     end
 
 --| Oauth -------------------------------------------------------------------------
@@ -22,6 +22,12 @@
 	Is called when a user hits authorize
 --]]-------------------------------------------------------
 	function EDRV_RecvOAuthorizationCode( sAuthCode )
+		accessToken = ELAN_GetPersistentValue("access_token")
+		if(accessToken ~= nil) then
+			ELAN_Trace(string.format("Access Token: %s", accessToken))
+		else
+			ELAN_Trace("No Access Token yet.")
+		end
 		ELAN_Trace(string.format("OAuthRedirectURI: %s", ELAN_GetOAuthRedirectURI()))
 		ELAN_SetDeviceState ("YELLOW", "Authorizing")
 		--create headers and body
@@ -41,6 +47,7 @@
 		local isConnected = ELAN_ConnectTCPSocket(socket)
 
 		--response validation
+		ELAN_Trace(string.format("Outgoing: \n%s\n%s",sHTTP,sContent));
 		local response = ELAN_DoHTTPExchange(socket, sHTTP, sContent, true, 5000)
 		local p1, p2
 		p1,p2 = response:find("200 OK")
@@ -52,14 +59,15 @@
 
 			sAccessToken = ELAN_FindJSONValueByKey(hJSON, hJSON, "access_token")
 			hasAccessToken = ELAN_SetPersistentValue("access_token", sAccessToken)
-			ELAN_Trace(string.format("Got AccessToken: %s", tostring(hasAccessToken)))
+			ELAN_Trace(string.format("Got AccessToken: %s", tostring(sAccessToken)))
 
 			sRefreshToken = ELAN_FindJSONValueByKey(hJSON, hJSON, "refresh_token")
 			hasRefreshToken = ELAN_SetPersistentValue("refresh_token", sRefreshToken)
-			ELAN_Trace(string.format("Got RefreshToken: %s", tostring(hasRefreshToken)))
+			ELAN_Trace(string.format("Got RefreshToken: %s", tostring(sRefreshToken)))
 
 			iExpiration = ELAN_FindJSONValueByKey(hJSON, hJSON, "expires_in")
 			ELAN_Trace(string.format("Expiration: %s",iExpiration))
+			ELAN_Trace("====================END OF GOOD RESPONSE====================\n\n")
 
 
 			--Sets the Token expiration to the new time.
@@ -72,6 +80,7 @@
 		else
 			ELAN_CloseSocket(socket)
 			ELAN_SetDeviceState ("RED", "Could Not Authorize (1)")
+			ELAN_Trace("=====================END OF BAD RESPONSE====================\n\n")
 		end
 	end
 
@@ -245,6 +254,7 @@
 		end
 		ELAN_CloseSocket(socket)
 	end
+
 
 
 
