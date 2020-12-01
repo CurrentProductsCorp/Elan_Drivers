@@ -3,13 +3,15 @@
 
 
 --| Globals -----------------------------------------------------------------------
-	
+
+	logging = false	
 
 --| Init --------------------------------------------------------------------------
     
 	function EDRV_Init()
 	    -- called when the driver starts up
-		-- May be used to get all the current devices later
+		ELAN_Trace("DRIVER STARTING UP")
+		ELAN_SetTimer(0, 20 * 1000) --Timer to get the position every 20 seconds
     end
 
 
@@ -17,16 +19,32 @@
 --| System Calls ------------------------------------------------------------------
 
 	--[[-------------------------------------------------------
+		Called when the config page is updated
+	--]]-------------------------------------------------------
+	function EDRV_SetConfigPgString (sPageTag, sTag, sValue)
+		--Remove whitespace
+		deviceString = trim(sValue)
+		--Set to lowercase
+		deviceString = string.lower(deviceString)
+		ELAN_SetPersistentValue("swappedDevices",deviceString)
+		ELAN_Trace(string.format("Input String: %s", deviceString))
+	end	
+
+	--[[-------------------------------------------------------
 		Called when the slider is set to open
 	--]]-------------------------------------------------------
-    function EDRV_ActivateDevice(deviceID, deviceSubType, isReversed)
-    -- Instruct the driver to turn the device on (CLOSE)
-		level = (isReversed == "true") and 0 or 100
+    function EDRV_ActivateDevice(deviceID, deviceSubType)
+		deviceLabel = deviceSubType == "blackout" and "p" or "s" 		
+		searchID = deviceID .. deviceLabel
+		isReversed = getIsReversed(searchID)
+
+    		-- Instruct the driver to turn the device on (CLOSE)
+		level = (isReversed) and 100 or 0
 
 		--reverse order because of Endianness.
 		deviceID = ReverseAddr(deviceID);
 		--ELAN_Trace(string.format("New Address: %x", deviceID))
-	
+
 		sCmd = GenerateMsg(deviceID, 1, MOVEMENT, deviceSubType, level, 0)
 	
 		SendPacket(sCmd, deviceID, deviceSubType, level)
@@ -35,13 +53,16 @@
 	--[[-------------------------------------------------------
 		Called when the slider is set to close
 	--]]-------------------------------------------------------
-    function EDRV_DeactivateDevice(deviceID, deviceSubType, isReversed)
-    -- Instruct the driver to turn the device off (OPEN)
-		level = (isReversed == "true") and 100 or 0
+    function EDRV_DeactivateDevice(deviceID, deviceSubType)
+		deviceLabel = deviceSubType == "blackout" and "p" or "s" 
+		searchID = deviceID .. deviceLabel
+		isReversed = getIsReversed(searchID)
+
+    		-- Instruct the driver to turn the device off (OPEN)
+		level = (isReversed) and 0 or 100
 
 		--reverse order because of Endianness.
 		deviceID = ReverseAddr(deviceID);
-		--ELAN_Trace(string.format("New Address: %x", deviceID))
 	
 		sCmd = GenerateMsg(deviceID, 1, MOVEMENT, deviceSubType, level, 0)
 	
@@ -51,9 +72,14 @@
 	--[[-------------------------------------------------------
 		Called when the slider is set to a new position
 	--]]-------------------------------------------------------
-    function EDRV_DimDeviceTo(level, deviceID, deviceSubType, isReversed)
+    function EDRV_DimDeviceTo(level, deviceID, deviceSubType)
+		deviceLabel = deviceSubType == "blackout" and "p" or "s" 
+		searchID = deviceID .. deviceLabel
+		isReversed = getIsReversed(searchID)
+		ELAN_Trace(string.format("Got isReversesd %s from %s", tostring(isReversed), searchID))		
+
 		-- Ternary for reversing motor
-		level = (isReversed == "true") and 100 - level or level
+		level = (isReversed) and level or 100 - level
 	
 		--reverse order because of Endianness.
 		deviceID = ReverseAddr(deviceID);
@@ -69,7 +95,6 @@
 		button
 	--]]-------------------------------------------------------
 	function EDRV_ExecuteConfigProc(procID)
-		ELAN_Trace(string.format("procID = %s", procID))
 		if procID == 1 then
 			DeviceDiscovery()
 		end
@@ -129,7 +154,10 @@
 		end
     end
 
-
+	function EDRV_OnTimer(timer_id)
+		ELAN_Trace("Timer expired.")
+		DeviceDiscovery()
+	end
 
 --| Unused ------------------------------------------------------------------------ 
 
@@ -168,6 +196,13 @@
     function EDRV_KeypadButtonRelease(buttonTag, deviceTag)
     -- Notification from the core that a keypad button was released in the g! UI
     end
+
+
+
+
+
+
+
 
 
 

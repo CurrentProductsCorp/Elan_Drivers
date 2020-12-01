@@ -1,5 +1,5 @@
 DRIVER_ID			= LIGHTDEVCTLR_LUA_SERIAL
-DRIVER_VERSION		= 1.0.0
+DRIVER_VERSION		= 1.2.0
 VENDOR				= Current Product Corp.'s App
 DRIVER_NAME			= Current_Products_Serial
 LUA_SRC				= Current_Products_Serial.lua
@@ -22,5 +22,16 @@ STOP_BITS		= 1
 [ENDUSER_CONFIG_STRINGS_END]
 
 [SUPPORTED_DEVICES_BEGIN]
-	DIMMER: tags: 3 label: ID, Type, Swap Direction
+	DIMMER: tags: 2 label: ID, Type
 [SUPPORTED_DEVICES_END]
+
+[CONFIG_SETTINGS_BEGIN]
+	CFG_PAGE: label:Reverse Open/Close tag:Reverse
+		CFG_STATIC_TEXT: Enter in the ids of each motor you would like to reverse the direction of, 
+		CFG_STATIC_TEXT: followed immediately by "P" or "S" for primary or seconday motor
+		CFG_STATIC_TEXT: respectively. Each item should be separated by a comma. 
+		CFG_STATIC_TEXT: If all motors, type "all"
+		CFG_SEPARATOR:
+		CFG_STRING: label: Device List tag: devices_reversed default: None
+	CFG_PAGE_END
+[CONFIG_SETTINGS_END]

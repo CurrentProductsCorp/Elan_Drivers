@@ -1,5 +1,6 @@
 -- Current_Products_Serial_Helper.lua
 
+--TODO: Keep the timer going on and keep reversed setting after driver updates
 
 
 --| Handling Incoming Data --------------------------------------------------------
@@ -103,14 +104,19 @@
 		if commandType == DEVICE_INFO then		
 			-- Determine if device is dual or single
 			deviceNumMotors = GetNumberMotors(string.sub(data, PAYLOAD_LOCATION, (PAYLOAD_LOCATION + payloadLength)))
+			levelBlackout, levelSheer = GetLevels(fromAddress, string.sub(data, PAYLOAD_LOCATION, (PAYLOAD_LOCATION + payloadLength)))
 			--ELAN_Trace(string.format("Number of Motors: %02x", deviceNumMotors))
-			if deviceNumMotors == 0x03 and deviceNumMotors ~= 0xFF then
-				ELAN_AddLightingDevice("DIMMER", fromAddress.. " Motor 1", fromAddress, "blackout", "false")
-				ELAN_AddLightingDevice("DIMMER", fromAddress.. " Motor 2", fromAddress, "sheer", "false")
+			if deviceNumMotors == 0x03 then
+				ELAN_AddLightingDevice("DIMMER", fromAddress.. " Motor 1", fromAddress, "blackout")
+			   	ELAN_RegisterDeviceLevel(levelBlackout, fromAddress, "blackout")
+				ELAN_AddLightingDevice("DIMMER", fromAddress.. " Motor 2", fromAddress, "sheer")
+				ELAN_RegisterDeviceLevel(levelSheer, fromAddress, "sheer")
 			elseif deviceNumMotors == 0x01 then
-				ELAN_AddLightingDevice("DIMMER", fromAddress, fromAddress.. "", "blackout", "false")
+				ELAN_AddLightingDevice("DIMMER", fromAddress, fromAddress.. "", "blackout")
+			   	ELAN_RegisterDeviceLevel(levelBlackout, fromAddress, "blackout")
 			elseif deviceNumMotors == 0x02 then
-				ELAN_AddLightingDevice("DIMMER", fromAddress, fromAddress.. "", "sheer", "false")
+				ELAN_AddLightingDevice("DIMMER", fromAddress, fromAddress.. "", "sheer")
+			   	ELAN_RegisterDeviceLevel(levelSheer, fromAddress, "sheer")
 			end
 			-- TODO: Reversed motor(?)
 		-- If command is a movement acknowledge
@@ -155,6 +161,28 @@
 		else
 			return 0xFF
 		end
+	end
+
+	--[[-------------------------------------------------------
+		Grabs the current position from the payload
+	--]]-------------------------------------------------------
+	function GetLevels(address, payload)
+		isBlackoutSwapped = getIsReversed(address.."p")
+		isSheerSwapped = getIsReversed(address.."s")
+		ELAN_Trace(string.format("IS SWAPPED: B: %s S: %s",tostring(isBlackoutSwapped), tostring(isSheerSwapped)))
+
+		blackoutPos = string.byte(payload,11)
+		sheerPos = string.byte(payload,12)
+
+		if(not isBlackoutSwapped) then
+			blackoutPos = 100 - blackoutPos
+		end
+
+		if(not isSheerSwapped) then
+			sheerPos = 100 - sheerPos
+		end
+
+		return blackoutPos, sheerPos
 	end
 
 	--[[-------------------------------------------------------
@@ -442,8 +470,66 @@
 	end
 
 
+--| String Functions --------------------------------------------------------------
+	--[[-------------------------------------------------------
+		Trims out whitespace using string.gsub
+	--]]-------------------------------------------------------	
+	function trim(deviceString)
+		return (string.gsub(deviceString,"%s+",""))
+	end
+
+	--[[-------------------------------------------------------
+		Trims out whitespace using string.gsub
+	--]]-------------------------------------------------------	
+	function split(inputString,delimiter)
+		if delimiter == nil then
+			delimiter = "%s+"
+		end
+		
+		local tokens={}
+		for item in string.gmatch(inputString, "([^" .. delimiter .. "]+)") do
+			table.insert(tokens, item)
+		end
+		return tokens
+	end
+
+--| Settings Functions ---------------------------------------------------------------
+	--[[-------------------------------------------------------
+		Checks the settings string for the device ID to see
+		if it exists in the string list of devices to swap
+		open/close position.
+	--]]-------------------------------------------------------	
+	function getIsReversed(value)
+		--swappedString = "all"
+		value = string.lower(value)
+		swappedString = ELAN_GetPersistentValue("swappedDevices")
+		ELAN_Trace(string.format("Value:         [%s]", value))
+		ELAN_Trace(string.format("swappedString: [%s]", swappedString))
+
+		if swappedString == nil then
+			return false
+		end
+
+		if string.find(swappedString, "all") then
+			return true
+		elseif string.find(swappedString, value) then
+			ELAN_Trace("Found string")
+			return true
+		else
+			ELAN_Trace("Did not find string")
+			return false
+		end	
+	end
+
+
 
 --| Debug -------------------------------------------------------------------------
+--TODO: The "Off" button is super janky, wtf.
+
+
+
+
+
 
 
 
