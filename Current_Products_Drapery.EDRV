@@ -10,9 +10,16 @@ CONFIG_BUTTON_1		= Device Discovery
 DEFAULT_PORT		= 80
 
 [SUPPORTED_DEVICES_BEGIN]
-        DIMMER: tags:4 label: ID, Type, Motor, Swap_Direction
+        DIMMER: tags:3 label: ID, Type, Motor
 [SUPPORTED_DEVICES_END]
 
-
-
-
+[CONFIG_SETTINGS_BEGIN]
+	CFG_PAGE: label:Reverse Open/Close tag:Reverse
+		CFG_STATIC_TEXT: Enter in the ids of each motor you would like to reverse the direction of, 
+		CFG_STATIC_TEXT: followed immediately by "P" or "S" for primary or seconday motor
+		CFG_STATIC_TEXT: respectively. Each item should be separated by a comma. 
+		CFG_STATIC_TEXT: If all motors, type "all"
+		CFG_SEPARATOR:
+		CFG_STRING: label: Device List tag: devices_reversed default: None
+	CFG_PAGE_END
+[CONFIG_SETTINGS_END]
