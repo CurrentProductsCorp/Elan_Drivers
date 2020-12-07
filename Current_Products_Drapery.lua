@@ -1,9 +1,11 @@
 --| Initialization ----------------------------------------------------------------
+
+
     function EDRV_Init()
     -- called when the driver starts up
-		ELAN_Trace("Initializing")
-		ELAN_Trace(string.format("Get Oauth State: %s",ELAN_GetOAuthState()))
-		ELAN_Trace(string.format("Get Oauth Redirect: %s",ELAN_GetOAuthRedirectURI()))
+		lock = 0
+		ELAN_Trace("[SYSTEM]: Initializing")
+		ELAN_Trace(string.format("[OAUTH]:  Get Oauth State: %s",ELAN_GetOAuthState()))
 		hasToken = false
 		HOST = "testing.currentproducts.io"
 		CLIENT_ID = "ELANdriver"
@@ -11,12 +13,12 @@
 		local sAuthURL = "https://" .. HOST .. "/oauth/authorize?"
 				.. "client_id=" .. CLIENT_ID
 				.. "&response_type=code"
-				.. "&redirect_uri=" .. "https://auth.corebrandsdev.net/oauth.htm" --ELAN_GetOAuthRedirectURI()
+				.. "&redirect_uri=" .. "https://auth.corebrandsdev.net/oauth.htm"
 				.. "&state=" .. ELAN_GetOAuthState()
 		ELAN_InitOAuthorizeURL(sAuthURL)
-		--GetPosition()
 		ELAN_SetTimer(1, 20 * 1000) --Timer to get the position every 20 seconds
     end
+
 
 --| Oauth -------------------------------------------------------------------------
 
@@ -28,7 +30,6 @@
 		HOST = "testing.currentproducts.io"
 		CLIENT_ID = "ELANdriver"
 		CLIENT_SECRET = "ELANsecret"
-		ELAN_SetDeviceState ("YELLOW", "Authorizing")
 		--create headers and body
 		local sHTTP = "POST /oauth/token/ HTTP/1.1\r\n"
 					.. "Accept: application/json\r\n"
@@ -40,17 +41,16 @@
 					.. "&code=" .. sAuthCode
 					.. "&client_id=" .. CLIENT_ID
 					.. "&client_secret=" .. CLIENT_SECRET
-					.. "&redirect_uri=" .. "https://auth.corebrandsdev.net/oauth.htm" --ELAN_GetOAuthRedirectURI()
+					.. "&redirect_uri=" .. "https://auth.corebrandsdev.net/oauth.htm"
 		
 		local p1, p2	
 		local isConnected
 		local socket
 		local response
-		ELAN_Trace(string.format("Results from ELAN_GetOAuthRedirectURI(): %s", ELAN_GetOAuthRedirectURI()));
-		ELAN_Trace(string.format("hasToken = %s", tostring(hasToken)))
 		if (hasToken == false) then
+			ELAN_SetDeviceState ("YELLOW", "Authorizing")
 			--socket interaction
-			socket = ELAN_CreateTCPClientSocket(HOST,80) --TODO: make this ELAN_CreateSSLClientSocket(?)
+			socket = ELAN_CreateTCPClientSocket(HOST,80)
 			isConnected = ELAN_ConnectTCPSocket(socket)
 	
 			--response validation
@@ -58,53 +58,41 @@
 			p1,p2 = response:find("200 OK")
 		end
 
-		ELAN_Trace(string.format("Response: %s", response))
-		ELAN_Trace(string.format("Found 200 OK (1): %s", tostring(p1)))
-
+		ELAN_Trace(string.format("[OAUTH]:  Response: %s", response))
+		
 		if(p1 ~= nil) then
 			local hJSON = ELAN_CreateJSONMsg(response)
 
 			sAccessToken = ELAN_FindJSONValueByKey(hJSON, hJSON, "access_token")
 			hasAccessToken = ELAN_SetPersistentValue("access_token", sAccessToken)
-			ELAN_Trace(string.format("Got AccessToken: %s", tostring(hasAccessToken)))
+			ELAN_Trace(string.format("[OAUTH]:  Got AccessToken: %s", tostring(hasAccessToken)))
 
 			sRefreshToken = ELAN_FindJSONValueByKey(hJSON, hJSON, "refresh_token")
 			hasRefreshToken = ELAN_SetPersistentValue("refresh_token", sRefreshToken)
-			ELAN_Trace(string.format("Got RefreshToken: %s", tostring(hasRefreshToken)))
+			ELAN_Trace(string.format("[OAUTH]:  Got RefreshToken: %s", tostring(hasRefreshToken)))
 
 			iExpiration = ELAN_FindJSONValueByKey(hJSON, hJSON, "expires_in")
-			ELAN_Trace(string.format("Expiration: %s",iExpiration))
-			ELAN_Trace(string.format("Expiration new Time: %s",tonumber(iExpiration)*1000 - 20000))
-			
+			ELAN_Trace(string.format("[OAUTH]:  Expiration: %s",iExpiration))
+			ELAN_Trace(string.format("[OAUTH]:  Expiration new Time: %s",tonumber(iExpiration)*1000 - 20000))
 
 			--Sets the Token expiration to the new time.
 			ELAN_SetTimer(0, (tonumber(iExpiration)*1000 - 20000))
 
 			--Populates the Lighting interface with devices from the server
-			--DeviceDiscovery(socket)
+			DeviceDiscovery()
 			hasToken = true
 			ELAN_SetDeviceState ("GREEN", "Connected To Server")
 			ELAN_DeleteJSONMsg(devicesJSON)
-		else
+		elseif (hasToken == false) then
 			ELAN_CloseSocket(socket)
 			ELAN_SetDeviceState ("RED", "Could Not Authorize")
 		end
 	end
 
 --[[-------------------------------------------------------
-	Checks token for refresh needs, cycles if necessary
-	@return boolean for refresh success
+	Refresh the auth token
 --]]-------------------------------------------------------
-	function EDRV_OnTimer(timer_id)
-		ELAN_Trace("Timer hit")
-		if timer_id > 1 or ELAN_GetPersistentValue("refresh_token") == nil then
-			return
-		end
-		
-		if timer_id == 1 then
-			GetAllPositions()
-		end
-		
+	function RefreshToken()
 		ELAN_SetDeviceState ("YELLOW", "Refreshing Token")
 
 		--create headers and body
@@ -125,8 +113,7 @@
 		local p1, p2
 		p1,p2 = response:find("200 OK")
 
-		ELAN_Trace(string.format("Response: %s", response))
-		ELAN_Trace(string.format("Found 200 OK (2): %s", tostring(p1)))
+		ELAN_Trace(string.format("[OAUTH]:  Response: %s", response))
 
 		if(p1 ~= nil) then
 			--response parsing
@@ -134,11 +121,11 @@
 
 			sAccessToken = ELAN_FindJSONValueByKey(hJSON, hJSON, "access_token")
 			hasAccessToken = ELAN_SetPersistentValue("access_token", sAccessToken)
-			ELAN_Trace(string.format("Got AccessToken: %s", tostring(hasAccessToken)))
+			ELAN_Trace(string.format("[OAUTH]:  Got AccessToken: %s", tostring(hasAccessToken)))
 
 			sRefreshToken = ELAN_FindJSONValueByKey(hJSON, hJSON, "refresh_token")
 			hasRefreshToken = ELAN_SetPersistentValue("refresh_token", sRefreshToken)
-			ELAN_Trace(string.format("Got RefreshToken: %s", tostring(hasRefreshToken)))
+			ELAN_Trace(string.format("[OAUTH]:  Got RefreshToken: %s", tostring(hasRefreshToken)))
 
 			iExpiration = ELAN_FindJSONValueByKey(hJSON, hJSON, "expires_in")
 
@@ -155,17 +142,18 @@
 		return true
 	end
 
+
 --[[-------------------------------------------------------
 	Populates the configurator with all the devices from
 	the server
 --]]-------------------------------------------------------
 	function DeviceDiscovery()
 		if (ELAN_GetPersistentValue("access_token") == nil) then
-			ELAN_Trace("No access token to obtain devices.")
+			ELAN_Trace("[OAUTH]:  No access token to obtain devices.")
 			return
 		end		
 		
-		local socket = ELAN_CreateTCPClientSocket(HOST,80) --TODO: make this ELAN_CreateSSLClientSocket(?)
+		local socket = ELAN_CreateTCPClientSocket(HOST,80)
 		local isConnected = ELAN_ConnectTCPSocket(socket)
 
 		ELAN_SetDeviceState ("YELLOW", "GETTING DEVICES")
@@ -177,15 +165,12 @@
 					.. "\r\n"
 		local response = ELAN_DoHTTPExchange(socket, sHTTP, 5000)
 		local devicesJSON = ELAN_CreateJSONMsg(response)
-		ELAN_Trace(string.format("RESPONSE: %s", response))
+		ELAN_Trace(string.format("[INFO]:   RESPONSE: %s", response))
 		local deviceCount = ELAN_GetJSONSubNodeCount(devicesJSON, devicesJSON )
 		local index = 0
-		
-		--deviceIDs = {}
-		--Search through devices on server and add them to the configurator
+
 		for index = 0, deviceCount-1 do
 			local deviceItemJSON = ELAN_GetJSONSubNode(devicesJSON, devicesJSON, index)
-			--ELAN_Trace(string.format("deviceItemJSON: %s", deviceItemJSON))
 			local deviceID = ELAN_GetJSONValue(devicesJSON, deviceItemJSON)		
 			local deviceName = ELAN_FindJSONValueByKey(devicesJSON, deviceItemJSON, "name", true)
 			local deviceType = ELAN_FindJSONValueByKey(devicesJSON, deviceItemJSON, "type", true)
@@ -199,27 +184,44 @@
 			else
 				ELAN_AddLightingDevice("DIMMER",deviceName,deviceID,deviceType,"blackout","false")
 			end
-			--deviceIDs[index] = deviceID
 		end
-		-- TODO: Call ELAN_DeleteJSONMsg for each ELAN_CreateJSONMsg
 		ELAN_SetDeviceState ("GREEN", "Connected to server")
 		ELAN_CloseSocket(socket)
 		ELAN_DeleteJSONMsg(devicesJSON)
 	end
 
+
 --| System Calls ------------------------------------------------------------------
 
-	--[[-------------------------------------------------------
-		Called when the config page is updated
-	--]]-------------------------------------------------------
+
+--[[-------------------------------------------------------
+	Called when the config page is updated
+--]]-------------------------------------------------------
 	function EDRV_SetConfigPgString (sPageTag, sTag, sValue)
 		--Remove whitespace
 		deviceString = trim(sValue)
 		--Set to lowercase
 		deviceString = string.lower(deviceString)
 		ELAN_SetPersistentValue("swappedDevices",deviceString)
-		ELAN_Trace(string.format("Input String: %s", deviceString))
 	end	
+
+--[[-------------------------------------------------------
+	Timer function, calls GetAllPositions or RefreshToken
+	depending on which timer calls it.
+--]]-------------------------------------------------------
+	function EDRV_OnTimer(timer_id)
+		if timer_id > 1 or ELAN_GetPersistentValue("refresh_token") == nil then
+			return
+		end
+		
+		if timer_id == 1 then
+			GetAllPositions()
+		end
+		
+		if timer_id == 2 then
+			RefreshToken()
+		end
+	end
 
 --[[-------------------------------------------------------
 	Called when the slider is set to a new position
@@ -228,7 +230,6 @@
 		--Check to see if motor reversed is set.
 		isRev = getIsReversed(deviceID, motor)
 		if(isRev) then
-			ELAN_Trace("motor is reversed")
 			SetPosition(deviceID, 100-data, motor)
 		else
 			SetPosition(deviceID, data, motor)
@@ -267,15 +268,6 @@
 		end
 	end
 
-
--- TODO: Remove this
---[[-------------------------------------------------------
-	Called when a variable changes
---]]-------------------------------------------------------
-	function EDRV_SetVariableIntDevice(var, value, deviceID, deviceType, motor)
-		ELAN_Trace("Triggered Variable Change.")
-	end
-
 --[[-------------------------------------------------------
 	HTTP call for setting the new position
 --]]-------------------------------------------------------
@@ -289,13 +281,13 @@
 		local socket = ELAN_CreateTCPClientSocket(HOST,80) --TODO: make this ELAN_CreateSSLClientSocket(?)
 		local JSONMsg = ELAN_CreateJSONMsg(string.format("{\"id\":%d,\"position\":%d,\"motor\":\"%s\"}",deviceID,position,motor))
 		local response = ELAN_DoHTTPExchange(socket, sHTTP, JSONMsg, 5000)
-		ELAN_Trace(string.format("Response: %s", response))
+		ELAN_Trace(string.format("[INFO]:   Response: %s", response))
 		local p1, p2	
 		p1,p2 = response:find("200 OK")
 		if p1 ~= nil then
-			ELAN_Trace("Response OK")
+			ELAN_Trace("[INFO]:   Response OK")
 		else
-			ELAN_Trace(string.format("Error: %s", response)) --TODO: Create unique responses for different types of errors.
+			ELAN_Trace(string.format("[ERROR]:  %s", response)) --TODO: Create unique responses for different types of errors.
 			ELAN_SetDeviceState ("RED", "Error Sending Position")
 		end
 		ELAN_CloseSocket(socket)
@@ -311,7 +303,7 @@
 			return
 		end		
 		
-		local socket = ELAN_CreateTCPClientSocket(HOST,80) --TODO: make this ELAN_CreateSSLClientSocket(?)
+		local socket = ELAN_CreateTCPClientSocket(HOST,80)
 		local isConnected = ELAN_ConnectTCPSocket(socket)
 
 		local sHTTP = "GET /v1/devices/concise HTTP/1.1\r\n"
@@ -322,7 +314,7 @@
 					.. "\r\n"
 		local response = ELAN_DoHTTPExchange(socket, sHTTP, 5000)
 		local devicesJSON = ELAN_CreateJSONMsg(response)
-		ELAN_Trace(string.format("RESPONSE: %s", response))
+		ELAN_Trace(string.format("[INFO]:   RESPONSE: %s", response))
 		local deviceCount = ELAN_GetJSONSubNodeCount(devicesJSON, devicesJSON )
 		local index = 0
 		
@@ -337,52 +329,41 @@
 			local deviceNumMotors = ELAN_FindJSONValueByKey(devicesJSON, deviceItemJSON, "numMotors")
 			--Create a second device if the decvice has two motors. This will append the appropriate motor number to the device name for lookup.
 			if deviceNumMotors > 1 then
-				ELAN_RegisterDeviceLevel(blackoutPos,deviceID,deviceType,"blackout","false")
-				ELAN_RegisterDeviceLevel(sheerPos,deviceID,deviceType,"sheer","false")
+				ELAN_RegisterDeviceLevel(GetPosition(deviceID,"blackout",blackoutPos),deviceID,deviceType,"blackout","false")
+				ELAN_RegisterDeviceLevel(GetPosition(deviceID,"sheer",sheerPos),deviceID,deviceType,"sheer","false")
 			else
-				ELAN_RegisterDeviceLevel(blackoutPos,deviceID,deviceType,"blackout","false")
+				ELAN_RegisterDeviceLevel(GetPosition(deviceID,"",blackoutPos),deviceID,deviceType,"blackout","false")
 			end
-			--deviceIDs[index] = deviceID
 		end
 		ELAN_CloseSocket(socket)
 		ELAN_DeleteJSONMsg(devicesJSON)
 	end
 
 
---[[-------------------------------------------------------
-	HTTP call for getting the new position
---]]-------------------------------------------------------
-	function GetPosition(deviceID)
-		local sHTTP = "GET /v1/position/" .. deviceID
-					.. "HTTP/1.1\r\n"
-					.. "Accept: application/json\r\n"
-					.. "Host: " .. HOST .. "\r\n"
-					.. "Authorization: Bearer " .. ELAN_GetPersistentValue("access_token") .. "\r\n"
-					.. "Content-Type: application/json\r\n"
-					.. "\r\n"
-		local socket = ELAN_CreateTCPClientSocket(HOST,80) --TODO: make this ELAN_CreateSSLClientSocket(?)
-		local response = ELAN_DoHTTPExchange(socket, sHTTP, 5000)
-		ELAN_Trace(string.format("Response: %s", response))
-		local p1, p2	
-		p1,p2 = response:find("200 OK")
-		if p1 ~= nil then
-			ELAN_Trace("Response OK")
-			ELAN_Trace(string.format("Device Position Response: %s", response))
-		else
-			ELAN_Trace(string.format("Error: %s", response)) --TODO: Create unique responses for different types of errors.
-			ELAN_SetDeviceState ("RED", "Error Sending Position")
-		end
-		ELAN_CloseSocket(socket)
-	end
-
 
 
 --| Settings Functions ---------------------------------------------------------------
-	--[[-------------------------------------------------------
-		Checks the settings string for the device ID to see
-		if it exists in the string list of devices to swap
-		open/close position.
-	--]]-------------------------------------------------------	
+
+
+--[[-------------------------------------------------------
+	Use the deviceID, the motor, and the input position to 
+	get the real position
+--]]-------------------------------------------------------
+	function GetPosition(deviceID, motor, position)
+		local isRev = getIsReversed(deviceID, motor)
+		if isRev then 
+			return (100 - position)
+		else
+			return position
+		end
+	end
+
+
+--[[-------------------------------------------------------
+	Checks the settings string for the device ID to see
+	if it exists in the string list of devices to swap
+	open/close position
+--]]-------------------------------------------------------	
 	function getIsReversed(value, motor)
 		local motorChar = ""
 		if motor == "blackout" then
@@ -391,12 +372,9 @@
 			motorChar = "s"
 		end
 
-		--swappedString = "all"
 		local value = value .. motorChar
 		value = string.lower(value)
 		swappedString = ELAN_GetPersistentValue("swappedDevices")
-		ELAN_Trace(string.format("Value:         [%s]", value))
-		ELAN_Trace(string.format("swappedString: [%s]", swappedString))
 
 		if swappedString == nil then
 			return false
@@ -405,30 +383,26 @@
 		if string.find(swappedString, "all") then
 			return true
 		elseif string.find(swappedString, value) then
-			ELAN_Trace("Found string")
 			return true
 		else
-			ELAN_Trace("Did not find string")
 			return false
 		end	
 	end
 
 
-
-
-
-
 --| String Functions --------------------------------------------------------------
-	--[[-------------------------------------------------------
-		Trims out whitespace using string.gsub
-	--]]-------------------------------------------------------	
+
+
+--[[-------------------------------------------------------
+	Trims out whitespace using string.gsub
+--]]-------------------------------------------------------	
 	function trim(deviceString)
 		return (string.gsub(deviceString,"%s+",""))
 	end
 
-	--[[-------------------------------------------------------
-		Trims out whitespace using string.gsub
-	--]]-------------------------------------------------------	
+--[[-------------------------------------------------------
+	Trims out whitespace using string.gsub
+--]]-------------------------------------------------------	
 	function split(inputString,delimiter)
 		if delimiter == nil then
 			delimiter = "%s+"
