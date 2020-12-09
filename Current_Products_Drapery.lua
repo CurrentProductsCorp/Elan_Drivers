@@ -3,11 +3,10 @@
 
     function EDRV_Init()
     -- called when the driver starts up
-		lock = 0
 		ELAN_Trace("[SYSTEM]: Initializing")
 		ELAN_Trace(string.format("[OAUTH]:  Get Oauth State: %s",ELAN_GetOAuthState()))
 		hasToken = false
-		HOST = "testing.currentproducts.io"
+		HOST = "api.currentproducts.io"
 		CLIENT_ID = "ELANdriver"
 		CLIENT_SECRET = "ELANsecret"
 		local sAuthURL = "https://" .. HOST .. "/oauth/authorize?"
@@ -27,7 +26,7 @@
 	Is called when a user hits authorize
 --]]-------------------------------------------------------
 	function EDRV_RecvOAuthorizationCode( sAuthCode )
-		HOST = "testing.currentproducts.io"
+		HOST = "api.currentproducts.io"
 		CLIENT_ID = "ELANdriver"
 		CLIENT_SECRET = "ELANsecret"
 		--create headers and body
@@ -84,9 +83,9 @@
 			ELAN_SetDeviceState ("GREEN", "Connected To Server")
 			ELAN_DeleteJSONMsg(devicesJSON)
 		elseif (hasToken == false) then
-			ELAN_CloseSocket(socket)
 			ELAN_SetDeviceState ("RED", "Could Not Authorize")
 		end
+			ELAN_CloseSocket(socket)
 	end
 
 --[[-------------------------------------------------------
@@ -213,13 +212,13 @@
 		if timer_id > 1 or ELAN_GetPersistentValue("refresh_token") == nil then
 			return
 		end
-		
+
+		if timer_id == 0 then
+			RefreshToken()
+		end		
+
 		if timer_id == 1 then
 			GetAllPositions()
-		end
-		
-		if timer_id == 2 then
-			RefreshToken()
 		end
 	end
 
@@ -414,3 +413,4 @@
 		end
 		return tokens
 	end
+
