@@ -168,6 +168,13 @@
 		local deviceCount = ELAN_GetJSONSubNodeCount(devicesJSON, devicesJSON )
 		local index = 0
 
+		local p1, p2	
+		p1,p2 = response:find("200 OK")
+		if p1 ~= nil then
+			ELAN_Trace("[INFO]:   Response OK")
+			ELAN_SetDeviceState ("GREEN", "Connected To Server")
+		end
+
 		for index = 0, deviceCount-1 do
 			local deviceItemJSON = ELAN_GetJSONSubNode(devicesJSON, devicesJSON, index)
 			local deviceID = ELAN_GetJSONValue(devicesJSON, deviceItemJSON)		
@@ -285,6 +292,7 @@
 		p1,p2 = response:find("200 OK")
 		if p1 ~= nil then
 			ELAN_Trace("[INFO]:   Response OK")
+			ELAN_SetDeviceState ("GREEN", "Connected To Server")
 		else
 			ELAN_Trace(string.format("[ERROR]:  %s", response)) --TODO: Create unique responses for different types of errors.
 			ELAN_SetDeviceState ("RED", "Error Sending Position")
@@ -316,7 +324,14 @@
 		ELAN_Trace(string.format("[INFO]:   RESPONSE: %s", response))
 		local deviceCount = ELAN_GetJSONSubNodeCount(devicesJSON, devicesJSON )
 		local index = 0
-		
+
+		local p1, p2	
+		p1,p2 = response:find("200 OK")
+		if p1 ~= nil then
+			ELAN_Trace("[INFO]:   Response OK")
+			ELAN_SetDeviceState ("GREEN", "Connected To Server")
+		end
+
 		--Search through devices on server and add them to the configurator
 		for index = 0, deviceCount-1 do
 			local deviceItemJSON = ELAN_GetJSONSubNode(devicesJSON, devicesJSON, index)
@@ -413,4 +428,6 @@
 		end
 		return tokens
 	end
+
+
 
